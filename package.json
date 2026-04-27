@@ -1,0 +1,12 @@
+{
+  "name": "open-claude-in-chrome",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "node --check ./host/mcp-server.js && node --check ./host/native-host.js && node --check ./extension/background.js && node --check ./extension/content.js",
+    "install:host": "bash ./install.sh"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  }
+}
