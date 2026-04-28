@@ -1,5 +1,6 @@
 // Background service worker for Open Claude in Chrome extension.
 // Handles: native messaging, CDP via chrome.debugger, tool dispatch, tab group management.
+import { getBlockedUrlPatterns, isUrlBlockedByPatterns } from "./managed-policy.js";
 
 // Prevent unhandled rejections from killing the service worker
 self.addEventListener("unhandledrejection", (event) => {
@@ -16,6 +17,7 @@ const attachedTabs = new Map(); // tabId -> { enabledDomains: Set }
 const consoleMessages = new Map(); // tabId -> [{level, text, timestamp, url}]
 const networkRequests = new Map(); // tabId -> [{url, method, status, type, timestamp}]
 const screenshotStore = new Map(); // imageId -> base64
+let gifRecording = null;
 
 // --- Keep-alive alarm ---
 chrome.alarms.create("keepalive", { periodInMinutes: 0.4 });
@@ -34,6 +36,8 @@ function connectNativeHost() {
     nativePort.onMessage.addListener((msg) => {
       if (msg.type === "tool_request" && msg.id) {
         handleToolRequest(msg.id, msg.tool, msg.args || {});
+      } else if (msg.type === "status_response") {
+        chrome.storage.local.set({ nativeHostStatus: msg }).catch(() => {});
       }
     });
 
@@ -48,6 +52,62 @@ function connectNativeHost() {
     setTimeout(connectNativeHost, 2000);
   }
 }
+
+async function openProductSurface(tabId) {
+  if (chrome.sidePanel && tabId !== undefined) {
+    await chrome.sidePanel.setOptions({
+      tabId,
+      path: "sidepanel.html",
+      enabled: true,
+    });
+    await chrome.sidePanel.open({ tabId });
+    return;
+  }
+  await chrome.windows.create({
+    url: chrome.runtime.getURL("sidepanel.html"),
+    type: "popup",
+    width: 420,
+    height: 720,
+  });
+}
+
+async function ensureOffscreenDocument() {
+  if (!chrome.offscreen) return false;
+  if (await chrome.offscreen.hasDocument()) return true;
+  await chrome.offscreen.createDocument({
+    url: "offscreen.html",
+    reasons: [chrome.offscreen.Reason.BLOBS],
+    justification: "Generate browser recording exports for Open Claude in Chrome.",
+  });
+  return true;
+}
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "get_status") {
+    sendResponse({
+      connected: Boolean(nativePort),
+      hostName: NATIVE_HOST_NAME,
+    });
+    return true;
+  }
+  if (message.type === "open_side_panel") {
+    openProductSurface(sender.tab?.id)
+      .then(() => sendResponse({ success: true }))
+      .catch((error) => sendResponse({ success: false, error: String(error) }));
+    return true;
+  }
+  return false;
+});
+
+chrome.commands?.onCommand?.addListener((command, tab) => {
+  if (command === "toggle-side-panel") {
+    openProductSurface(tab?.id).catch(() => {});
+  }
+});
+
+chrome.action?.onClicked?.addListener(tab => {
+  openProductSurface(tab?.id).catch(() => {});
+});
 
 function sendResponse(id, result) {
   if (!nativePort) return;
@@ -463,6 +523,10 @@ const toolHandlers = {
         targetUrl = targetUrl.replace(/^[a-z]{1,5}:\/+/i, "");
         targetUrl = "https://" + targetUrl;
       }
+      if (isUrlBlockedByPatterns(targetUrl, await getBlockedUrlPatterns())) {
+        await chrome.tabs.update(tabId, { url: chrome.runtime.getURL("blocked.html") });
+        return { content: [{ type: "text", text: `Navigation blocked by OpenClaude policy: ${url}` }] };
+      }
       try {
         new URL(targetUrl); // Validate URL before passing to Chrome
       } catch {
@@ -514,6 +578,9 @@ const toolHandlers = {
     switch (action) {
       case "screenshot": {
         const { base64, imageId } = await takeScreenshot(tabId);
+        if (gifRecording?.tabId === tabId) {
+          gifRecording.frames.push({ base64, label: "screenshot", at: Date.now() });
+        }
         // Get viewport dimensions for the response message
         let dims = "";
         try {
@@ -941,7 +1008,75 @@ const toolHandlers = {
   },
 
   async gif_creator(args) {
-    return { content: [{ type: "text", text: "GIF recording is not yet implemented in this extension." }] };
+    const action = args.action;
+    const tabId = Number(args.tabId);
+    if (!Number.isInteger(tabId)) {
+      return { content: [{ type: "text", text: "tabId is required for gif_creator" }] };
+    }
+    if (!(await isInGroup(tabId))) {
+      return { content: [{ type: "text", text: `Tab ${tabId} is not in the MCP group.` }] };
+    }
+
+    if (action === "start_recording") {
+      const { base64 } = await takeScreenshot(tabId);
+      gifRecording = {
+        tabId,
+        frames: [{ base64, label: "start", at: Date.now() }],
+        startedAt: Date.now(),
+      };
+      return { content: [{ type: "text", text: "GIF recording started." }] };
+    }
+
+    if (action === "stop_recording") {
+      if (!gifRecording) {
+        return { content: [{ type: "text", text: "No GIF recording is active." }] };
+      }
+      const { base64 } = await takeScreenshot(tabId);
+      gifRecording.frames.push({ base64, label: "stop", at: Date.now() });
+      gifRecording.stoppedAt = Date.now();
+      return { content: [{ type: "text", text: `GIF recording stopped with ${gifRecording.frames.length} frame(s).` }] };
+    }
+
+    if (action === "clear") {
+      gifRecording = null;
+      await chrome.storage.local.remove("exportedGifData");
+      return { content: [{ type: "text", text: "GIF recording cleared." }] };
+    }
+
+    if (action === "export") {
+      if (!gifRecording) {
+        return { content: [{ type: "text", text: "No GIF recording is available to export." }] };
+      }
+      if (!(await ensureOffscreenDocument())) {
+        return { content: [{ type: "text", text: "Offscreen documents are not available in this browser." }] };
+      }
+      const result = await chrome.runtime.sendMessage({
+        type: "GENERATE_GIF",
+        frames: gifRecording.frames,
+        filename: args.filename,
+        options: args.options,
+      });
+      if (!result?.success) {
+        return { content: [{ type: "text", text: `GIF export failed: ${result?.error || "unknown error"}` }] };
+      }
+      await chrome.storage.local.set({
+        exportedGifData: {
+          dataUrl: result.dataUrl,
+          filename: result.filename,
+          createdAt: Date.now(),
+        },
+      });
+      if (args.download && result.dataUrl && chrome.downloads) {
+        await chrome.downloads.download({
+          url: result.dataUrl,
+          filename: result.filename,
+          saveAs: false,
+        });
+      }
+      return { content: [{ type: "text", text: `GIF exported: ${result.filename}` }] };
+    }
+
+    return { content: [{ type: "text", text: `Unknown gif_creator action: ${action}` }] };
   },
 
   async shortcuts_list(args) {

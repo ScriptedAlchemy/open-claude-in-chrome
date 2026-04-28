@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "properties": {
+    "blockedUrlPatterns": {
+      "title": "Blocked URL patterns",
+      "description": "URL patterns where Open Claude in Chrome is blocked. Patterns are matched against hostname and path. Use * as a wildcard.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "forceLoginOrgUUID": {
+      "title": "Force Login Organization UUID",
+      "description": "Optional Claude.ai organization UUID compatibility setting for managed deployments.",
+      "type": "string"
+    }
+  }
+}

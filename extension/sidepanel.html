@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Open Claude in Chrome</title>
+    <style>
+      body { margin: 0; font: 14px system-ui, sans-serif; background: #faf9f5; color: #262624; }
+      main { padding: 18px; display: grid; gap: 14px; }
+      h1 { font-size: 18px; margin: 0; }
+      .card { border: 1px solid #dedbd2; border-radius: 10px; padding: 12px; background: white; }
+      .ok { color: #147a3f; }
+      .warn { color: #9a5b00; }
+      button { padding: 8px 10px; border-radius: 8px; border: 1px solid #c9c5ba; background: #fff; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Open Claude in Chrome</h1>
+      <section class="card">
+        <strong>Connection</strong>
+        <p id="status" class="warn">Checking native host...</p>
+      </section>
+      <section class="card">
+        <strong>Diagnostics</strong>
+        <p>Use OpenClaude's <code>/chrome</code> screen for CLI-side status while this panel grows into the full product UI.</p>
+      </section>
+      <button id="options">Open options</button>
+    </main>
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

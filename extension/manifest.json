@@ -4,7 +4,12 @@
   "version": "1.0.0",
   "description": "Claude in Chrome, open source. No domain blocklist. Any Chromium browser.",
   "minimum_chrome_version": "116",
+  "action": {
+    "default_title": "Open Claude"
+  },
+  "options_page": "options.html",
   "permissions": [
+    "sidePanel",
     "tabs",
     "debugger",
     "activeTab",
@@ -13,20 +18,67 @@
     "tabGroups",
     "windows",
     "storage",
-    "alarms"
+    "alarms",
+    "notifications",
+    "webNavigation",
+    "offscreen",
+    "unlimitedStorage",
+    "downloads"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "storage": {
+    "managed_schema": "managed_schema.json"
   },
   "content_scripts": [
     {
+      "matches": ["https://claude.ai/*", "https://*.claude.ai/*"],
+      "js": ["claude-ai-handoff.js"],
+      "run_at": "document_end"
+    },
+    {
       "matches": ["<all_urls>"],
       "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["agent-visual-indicator.js"],
       "run_at": "document_idle",
       "all_frames": false
+    }
+  ],
+  "externally_connectable": {
+    "matches": ["https://claude.ai/*", "https://*.claude.ai/*"]
+  },
+  "commands": {
+    "toggle-side-panel": {
+      "suggested_key": {
+        "default": "Ctrl+E",
+        "mac": "Command+E"
+      },
+      "description": "Toggle Open Claude side panel"
+    }
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*;"
+  },
+  "web_accessible_resources": [
+    {
+      "matches": ["https://claude.ai/*", "https://*.claude.ai/*"],
+      "resources": ["claude-ai-handoff.js"],
+      "use_dynamic_url": false
+    },
+    {
+      "matches": ["<all_urls>"],
+      "resources": ["content.js", "agent-visual-indicator.js"],
+      "use_dynamic_url": false
     }
   ],
   "icons": {

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Open Claude in Chrome Options</title>
+    <style>
+      body { max-width: 760px; margin: 32px auto; font: 14px system-ui, sans-serif; color: #262624; }
+      label { display: grid; gap: 6px; margin: 16px 0; }
+      input, textarea { font: inherit; padding: 8px; border: 1px solid #c9c5ba; border-radius: 8px; }
+      textarea { min-height: 120px; }
+      button { padding: 8px 12px; border-radius: 8px; border: 1px solid #c9c5ba; background: #fff; }
+      .saved { color: #147a3f; }
+    </style>
+  </head>
+  <body>
+    <h1>Open Claude in Chrome Options</h1>
+    <label>
+      Blocked URL patterns (one per line)
+      <textarea id="blocked" placeholder="example.com/admin/*"></textarea>
+    </label>
+    <p>
+      Native-host and provider status are managed by OpenClaude. Use the
+      side panel or OpenClaude's Chrome settings for connection diagnostics.
+    </p>
+    <button id="save">Save</button>
+    <p id="result"></p>
+    <script src="options.js"></script>
+  </body>
+</html>
