@@ -1,23 +1,33 @@
 import { describe, expect, test } from "bun:test"
 
 describe("open-claude-in-chrome package exports", () => {
-  test("workspace package entrypoint loads", async () => {
+  test("workspace package entrypoint resolves provided and default loggers", async () => {
     const mod = await import("open-claude-in-chrome")
-    expect(typeof mod.resolveLogger).toBe("function")
+    const logger = { debug() {}, info() {}, warn() {}, error() {} }
+
+    expect(mod.resolveLogger(logger)).toBe(logger)
+    expect(() => mod.resolveLogger().debug("ok")).not.toThrow()
   })
 
-  test("declared package subpaths load", async () => {
-    await expect(import("open-claude-in-chrome/protocol")).resolves.toMatchObject({
-      encodeNativeMessage: expect.any(Function),
-    })
-    await expect(import("open-claude-in-chrome/tools")).resolves.toMatchObject({
-      CHROME_BROWSER_TOOLS: expect.any(Array),
-    })
+  test("declared package subpaths expose protocol and tool behavior", async () => {
+    const { encodeNativeMessage } = await import("open-claude-in-chrome/protocol")
+    const { CHROME_BROWSER_TOOLS, CHROME_TOOL_NAMES } = await import(
+      "open-claude-in-chrome/tools"
+    )
+    const payload = Buffer.from(JSON.stringify({ type: "ping" }), "utf8")
+    const encoded = encodeNativeMessage({ type: "ping" })
+
+    expect(encoded.readUInt32LE(0)).toBe(payload.length)
+    expect(encoded.subarray(4)).toEqual(payload)
+    expect(CHROME_TOOL_NAMES).toEqual(CHROME_BROWSER_TOOLS.map(tool => tool.name))
+    expect(CHROME_TOOL_NAMES).toContain("javascript_tool")
   })
 
-  test("source entrypoint loads", async () => {
+  test("source entrypoint resolves provided logger", async () => {
     const mod = await import("../src/node/index.js")
-    expect(typeof mod.resolveLogger).toBe("function")
+    const logger = { debug() {}, info() {}, warn() {}, error() {} }
+
+    expect(mod.resolveLogger(logger)).toBe(logger)
   })
 
   test("logger default is callable", async () => {
