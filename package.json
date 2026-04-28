@@ -2,9 +2,18 @@
   "name": "open-claude-in-chrome",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/node/index.js",
+    "./tools": "./src/tools/manifest.js",
+    "./protocol": "./src/shared/protocol.js",
+    "./native-host": "./src/host/native-host.js",
+    "./compat-server": "./src/host/compat-server.js"
+  },
   "scripts": {
-    "lint": "node --check ./host/mcp-server.js && node --check ./host/native-host.js && node --check ./extension/background.js && node --check ./extension/content.js",
-    "install:host": "bash ./install.sh"
+    "lint": "node --check ./host/mcp-server.js && node --check ./host/native-host.js && node --check ./extension/background.js && node --check ./extension/content.js && node --check ./src/node/index.js",
+    "test": "bun test ./test",
+    "install:host": "bash ./install.sh",
+    "sync:extension": "node ./scripts/sync-extension.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
