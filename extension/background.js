@@ -133,7 +133,6 @@ function sendError(id, error) {
 
 // --- Tab group management ---
 async function ensureTabGroup(createIfEmpty) {
-  // Check if our tab group still exists
   if (tabGroupId !== null) {
     try {
       const group = await chrome.tabGroups.get(tabGroupId);
@@ -150,6 +149,16 @@ async function ensureTabGroup(createIfEmpty) {
   }
 
   if (!createIfEmpty) return;
+
+  const existingGroups = await chrome.tabGroups.query({ title: "MCP" }).catch(() => []);
+  for (const group of existingGroups) {
+    const tabs = await chrome.tabs.query({ groupId: group.id }).catch(() => []);
+    if (tabs.length > 0) {
+      tabGroupId = group.id;
+      tabGroupTabs = new Set(tabs.map((tab) => tab.id));
+      return;
+    }
+  }
 
   // Create a new window with a tab, group it
   const win = await chrome.windows.create({ focused: true, url: "about:blank" });

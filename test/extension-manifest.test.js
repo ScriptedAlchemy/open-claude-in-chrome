@@ -52,6 +52,8 @@ describe("extension product surface", () => {
       "gif_viewer.html",
       "gif_viewer.js",
       "managed-policy.js",
+      "theme.js",
+      "ui.css",
     ])
 
     for (const script of manifest.content_scripts) {
@@ -85,5 +87,17 @@ describe("extension product surface", () => {
     )
     expect(contentScript.run_at).toBe("document_start")
     expect(contentScript.all_frames).toBe(true)
+  })
+
+  test("ships Claude-style shared UI chrome", () => {
+    const uiCss = readFileSync(join(extensionRoot, "ui.css"), "utf8")
+    expect(uiCss).toContain("--bg-100: hsl(48 33.3% 97.1%)")
+    expect(uiCss).toContain("--brand-100: hsl(15 54.2% 51.2%)")
+    for (const page of ["sidepanel.html", "options.html", "pairing.html", "blocked.html"]) {
+      const html = readFileSync(join(extensionRoot, page), "utf8")
+      expect(html).toContain('data-theme="claude"')
+      expect(html).toContain('href="ui.css"')
+      expect(html).toContain('src="theme.js"')
+    }
   })
 })
