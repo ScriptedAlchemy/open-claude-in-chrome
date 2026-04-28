@@ -198,7 +198,8 @@
         (filter === "all" && (role || name)) ||
         (filter === "interactive" && interactive);
 
-      if (shouldShow && visible) {
+      const includeNode = shouldShow && (filter === "all" || visible);
+      if (includeNode) {
         const ref = getOrAssignRef(el);
         let line = `${indent}`;
 
@@ -228,7 +229,7 @@
       }
 
       // Recurse children (including shadow DOM)
-      const nextIndent = shouldShow && visible ? indent + "  " : indent;
+      const nextIndent = includeNode ? indent + "  " : indent;
       if (el.shadowRoot) {
         for (const child of el.shadowRoot.children) {
           walk(child, depth + 1, nextIndent);
@@ -415,6 +416,17 @@
     };
   }
 
+  function scrollToRef(refId) {
+    const el = resolveRef(refId);
+    if (!el) return { error: `Element ${refId} not found or was garbage collected.` };
+    el.scrollIntoView({ block: "center", behavior: "instant" });
+    const rect = el.getBoundingClientRect();
+    return {
+      success: true,
+      coordinates: [Math.round(rect.x + rect.width / 2), Math.round(rect.y + rect.height / 2)],
+    };
+  }
+
   // --- Message handler ---
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === "generateAccessibilityTree") {
@@ -447,6 +459,12 @@
       return true;
     }
 
+    if (msg.type === "scrollToRef") {
+      const result = scrollToRef(msg.ref);
+      sendResponse({ result });
+      return true;
+    }
+
     return false;
   });
 
@@ -456,6 +474,7 @@
     findElements,
     setFormValue,
     getRefCoordinates,
+    scrollToRef,
     resolveRef,
     elementMap,
   };

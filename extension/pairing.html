@@ -10,9 +10,20 @@
   <body>
     <main class="center-page">
       <section class="card content">
-      <h1>Connect Open Claude in Chrome</h1>
-      <p>Start OpenClaude, enable Chrome integration from Settings or <code>/chrome</code>, then reload this extension if it does not reconnect automatically.</p>
+        <h1>Pair Browser Bridge</h1>
+        <p id="pairing-copy">
+          Confirm this request to pair your browser extension with the local OpenClaude runtime.
+        </p>
+        <label>
+          Display name
+          <input id="pairing-name" type="text" autocomplete="off" />
+        </label>
+        <div class="button-row">
+          <button id="pairing-dismiss" type="button">Dismiss</button>
+          <button id="pairing-confirm" class="primary" type="button">Pair</button>
+        </div>
       </section>
     </main>
+    <script src="pairing.js"></script>
   </body>
 </html>

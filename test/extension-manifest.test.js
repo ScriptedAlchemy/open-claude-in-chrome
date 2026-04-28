@@ -46,6 +46,7 @@ describe("extension product surface", () => {
       "sidepanel.html",
       "sidepanel.js",
       "pairing.html",
+      "pairing.js",
       "blocked.html",
       "offscreen.html",
       "offscreen.js",
@@ -98,6 +99,62 @@ describe("extension product surface", () => {
       expect(html).toContain('data-theme="claude"')
       expect(html).toContain('href="ui.css"')
       expect(html).toContain('src="theme.js"')
+    }
+  })
+
+  test("side panel exposes the browser companion product surface", () => {
+    const html = readFileSync(join(extensionRoot, "sidepanel.html"), "utf8")
+    const background = readFileSync(join(extensionRoot, "background.js"), "utf8")
+    const script = readFileSync(join(extensionRoot, "sidepanel.js"), "utf8")
+    const uiCss = readFileSync(join(extensionRoot, "ui.css"), "utf8")
+
+    for (const token of [
+      "Claude in Chrome",
+      "Hi, I’m Claude. How can I help you today?",
+      "Runtime connection",
+      "Current tab",
+      "Browser tools",
+      "Diagnostics",
+      "Summarize page",
+      "Explain screenshot",
+      "Message Claude about this page",
+      'id="status-pill"',
+      'id="copy-tab"',
+      'id="copy-prompt"',
+      'id="open-claude"',
+    ]) {
+      expect(html).toContain(token)
+    }
+
+    for (const selector of [
+      ".capability-grid",
+      ".status-pill",
+      ".tab-card",
+      ".conversation-card",
+      ".assistant-greeting",
+      ".permission-banner",
+    ]) {
+      expect(uiCss).toContain(selector)
+    }
+
+    for (const token of [
+      "sidepanel.html?tabId=",
+      "onMessageExternal",
+      '"POPULATE_INPUT_TEXT"',
+      '"SW_KEEPALIVE"',
+      '"show_pairing_prompt"',
+      '"pairing_response"',
+      '"oauth_redirect"',
+    ]) {
+      expect(background).toContain(token)
+    }
+
+    for (const token of [
+      "new URLSearchParams(location.search).get(\"tabId\")",
+      '"POPULATE_INPUT_TEXT"',
+      '"show_pairing_prompt"',
+    ]) {
+      expect(script).toContain(token)
     }
   })
 })

@@ -9,22 +9,115 @@
   </head>
   <body>
     <main class="panel-shell">
-      <header class="panel-header">
-        <h1>Open Claude</h1>
-        <p>Browser automation connected to your local OpenClaude runtime.</p>
+      <header class="panel-header hero">
+        <div>
+          <div class="eyebrow">OpenClaude browser companion</div>
+          <h1>Claude in Chrome</h1>
+          <p>Inspect the active page and let your local OpenClaude runtime drive browser actions.</p>
+        </div>
+        <span id="status-pill" class="status-pill warn">Checking</span>
       </header>
-      <section class="page stack">
-        <article class="card">
-          <div class="card-title">Connection</div>
-          <p id="status" class="warn">Checking native host...</p>
+
+      <section class="page panel-content stack">
+        <article class="conversation-card">
+          <div class="message-row assistant">
+            <div class="avatar">C</div>
+            <div class="message-bubble">
+              <p class="assistant-greeting">Hi, I’m Claude. How can I help you today?</p>
+              <p class="muted">Ask me to inspect this page, click through a workflow, fill a form, or record browser steps.</p>
+            </div>
+          </div>
+          <div class="shortcut-strip" aria-label="Suggested browser actions">
+            <button class="chip" data-prompt="Summarize the current page">Summarize page</button>
+            <button class="chip" data-prompt="Find interactive elements on this page">Find controls</button>
+            <button class="chip" data-prompt="Capture a screenshot and explain this page">Explain screenshot</button>
+          </div>
+          <label class="composer" aria-label="Message Claude">
+            <textarea id="prompt" placeholder="Message Claude about this page..."></textarea>
+            <div class="composer-actions">
+              <span class="muted">Context from the active tab is included when available.</span>
+              <button id="copy-prompt" class="primary" type="button">Copy prompt</button>
+            </div>
+          </label>
         </article>
+
+        <article class="permission-banner" id="permission-banner">
+          <div>
+            <strong>Browser permissions</strong>
+            <p>OpenClaude can read page structure and drive browser actions only after the local runtime and native host are connected.</p>
+          </div>
+          <button id="dismiss-permission" class="compact" type="button">Dismiss</button>
+        </article>
+
+        <article class="card connection-card">
+          <div class="card-row">
+            <div>
+              <div class="card-title">Runtime connection</div>
+              <p id="status" class="warn">Checking native host...</p>
+            </div>
+            <button id="refresh" class="button compact" type="button">Refresh</button>
+          </div>
+          <dl class="meta-grid">
+            <div>
+              <dt>Native host</dt>
+              <dd id="host-name">com.openclaude.chrome</dd>
+            </div>
+            <div>
+              <dt>Mode</dt>
+              <dd id="connection-mode">Local MCP bridge</dd>
+            </div>
+          </dl>
+        </article>
+
+        <article class="card">
+          <div class="card-title">Current tab</div>
+          <div class="tab-card">
+            <div class="favicon-dot" aria-hidden="true"></div>
+            <div class="tab-copy">
+              <div id="tab-title" class="tab-title">No active tab detected</div>
+              <div id="tab-url" class="tab-url muted">Open a page to expose it to OpenClaude.</div>
+            </div>
+          </div>
+          <div class="button-row">
+            <button id="copy-tab" type="button">Copy tab context</button>
+            <button id="open-claude" class="primary" type="button">Open Claude</button>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-title">Browser tools</div>
+          <div class="capability-grid" aria-label="Available browser capabilities">
+            <div class="capability">
+              <strong>Screenshot</strong>
+              <span>Capture the viewport for visual reasoning.</span>
+            </div>
+            <div class="capability">
+              <strong>Computer use</strong>
+              <span>Click, type, scroll, drag, hover, and press keys.</span>
+            </div>
+            <div class="capability">
+              <strong>Page context</strong>
+              <span>Read accessibility, console, and network state.</span>
+            </div>
+            <div class="capability">
+              <strong>Recording</strong>
+              <span>Create GIF exports and downloadable artifacts.</span>
+            </div>
+          </div>
+        </article>
+
         <article class="card">
           <div class="card-title">Diagnostics</div>
-          <p>Use OpenClaude's <code>/chrome</code> screen for detailed runtime, provider, and MCP state.</p>
+          <ol class="timeline" id="activity">
+            <li>Use OpenClaude’s <code>/chrome</code> command for detailed provider, MCP, and runtime diagnostics.</li>
+            <li>Keep this panel open while Claude works with browser tabs.</li>
+          </ol>
         </article>
       </section>
+
       <footer class="panel-footer">
-        <button id="options">Open options</button>
+        <button id="options" type="button">Options</button>
+        <span class="muted">No cloud proxy. Browser automation stays local.</span>
       </footer>
     </main>
     <script src="sidepanel.js"></script>

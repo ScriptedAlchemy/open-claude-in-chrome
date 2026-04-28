@@ -19,6 +19,7 @@ const consoleMessages = new Map(); // tabId -> [{level, text, timestamp, url}]
 const networkRequests = new Map(); // tabId -> [{url, method, status, type, timestamp}]
 const screenshotStore = new Map(); // imageId -> base64
 let gifRecording = null;
+const pendingPairingRequests = new Set();
 
 // --- Keep-alive alarm ---
 chrome.alarms.create("keepalive", { periodInMinutes: 0.4 });
@@ -41,6 +42,8 @@ function connectNativeHost() {
         handleToolRequest(msg.id, msg.tool, msg.args || {});
       } else if (msg.type === "status_response") {
         chrome.storage.local.set({ nativeHostStatus: msg }).catch(() => {});
+      } else if (msg.type === "pairing_request") {
+        handlePairingRequest(msg).catch(() => {});
       }
     });
 
@@ -58,35 +61,119 @@ function connectNativeHost() {
 }
 
 async function openProductSurface(tabId) {
+  const path = tabId === undefined ? "sidepanel.html" : `sidepanel.html?tabId=${encodeURIComponent(tabId)}`;
   if (chrome.sidePanel && tabId !== undefined) {
     await chrome.sidePanel.setOptions({
       tabId,
-      path: "sidepanel.html",
+      path,
       enabled: true,
     });
     await chrome.sidePanel.open({ tabId });
     return;
   }
   await chrome.windows.create({
-    url: chrome.runtime.getURL("sidepanel.html"),
+    url: chrome.runtime.getURL(path),
     type: "popup",
     width: 420,
     height: 720,
   });
 }
 
+async function getBridgeDisplayName() {
+  const { bridgeDisplayName } = await chrome.storage.local
+    .get(["bridgeDisplayName"])
+    .catch(() => ({}));
+  if (typeof bridgeDisplayName === "string" && bridgeDisplayName.trim()) {
+    return bridgeDisplayName.trim();
+  }
+  return "OpenClaude Browser";
+}
+
+async function getOrCreatePairingDeviceId() {
+  const { pairingDeviceId } = await chrome.storage.local
+    .get(["pairingDeviceId"])
+    .catch(() => ({}));
+  if (typeof pairingDeviceId === "string" && pairingDeviceId.trim()) {
+    return pairingDeviceId.trim();
+  }
+  const generated =
+    typeof crypto?.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `device-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  await chrome.storage.local.set({ pairingDeviceId: generated });
+  return generated;
+}
+
+function postPairingResponse(payload) {
+  if (!nativePort) return false;
+  try {
+    nativePort.postMessage(payload);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function handlePairingRequest(message) {
+  const requestId =
+    typeof message.request_id === "string" ? message.request_id.trim() : "";
+  if (!requestId || pendingPairingRequests.has(requestId)) return;
+  pendingPairingRequests.add(requestId);
+
+  const clientType =
+    typeof message.client_type === "string" && message.client_type.trim()
+      ? message.client_type.trim()
+      : "desktop";
+  const currentName = await getBridgeDisplayName();
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "show_pairing_prompt",
+      request_id: requestId,
+      client_type: clientType,
+      current_name: currentName,
+    });
+    if (response?.handled) return;
+  } catch {
+    // Side panel might not be open; fallback to pairing page.
+  }
+
+  const query = new URLSearchParams({
+    request_id: requestId,
+    client_type: clientType,
+    current_name: currentName,
+  });
+  await chrome.windows
+    .create({
+      url: chrome.runtime.getURL(`pairing.html?${query.toString()}`),
+      type: "popup",
+      width: 420,
+      height: 560,
+    })
+    .catch(() => {});
+}
+
 async function ensureOffscreenDocument() {
   if (!chrome.offscreen) return false;
   if (await chrome.offscreen.hasDocument()) return true;
+  const reasons = [chrome.offscreen.Reason.BLOBS];
+  if (chrome.offscreen.Reason.AUDIO_PLAYBACK) {
+    reasons.push(chrome.offscreen.Reason.AUDIO_PLAYBACK);
+  }
   await chrome.offscreen.createDocument({
     url: "offscreen.html",
-    reasons: [chrome.offscreen.Reason.BLOBS],
-    justification: "Generate browser recording exports for Open Claude in Chrome.",
+    reasons,
+    justification:
+      "Generate browser recording exports and play notification audio for Open Claude in Chrome.",
   });
   return true;
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "SW_KEEPALIVE") {
+    sendResponse({ ok: true });
+    return true;
+  }
   if (message.type === "get_status") {
     sendResponse({
       connected: Boolean(nativePort),
@@ -100,7 +187,94 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch((error) => sendResponse({ success: false, error: String(error) }));
     return true;
   }
+  if (message.type === "pairing_confirmed") {
+    const requestId =
+      typeof message.request_id === "string" ? message.request_id.trim() : "";
+    if (!requestId) {
+      sendResponse({ success: false, error: "pairing_confirmed missing request_id" });
+      return true;
+    }
+
+    (async () => {
+      const providedName =
+        typeof message.name === "string" ? message.name.trim() : "";
+      const bridgeDisplayName = providedName || (await getBridgeDisplayName());
+      await chrome.storage.local.set({ bridgeDisplayName });
+      const deviceId = await getOrCreatePairingDeviceId();
+      pendingPairingRequests.delete(requestId);
+      const sent = postPairingResponse({
+        type: "pairing_response",
+        request_id: requestId,
+        approved: true,
+        device_id: deviceId,
+        bridgeDisplayName,
+      });
+      sendResponse(
+        sent
+          ? { success: true }
+          : { success: false, error: "Native host unavailable for pairing response." },
+      );
+    })().catch((error) =>
+      sendResponse({ success: false, error: String(error) }),
+    );
+    return true;
+  }
+  if (message.type === "pairing_dismissed") {
+    const requestId =
+      typeof message.request_id === "string" ? message.request_id.trim() : "";
+    if (!requestId) {
+      sendResponse({ success: false, error: "pairing_dismissed missing request_id" });
+      return true;
+    }
+    pendingPairingRequests.delete(requestId);
+    const sent = postPairingResponse({
+      type: "pairing_response",
+      request_id: requestId,
+      approved: false,
+      reason: "dismissed",
+    });
+    sendResponse(
+      sent
+        ? { success: true }
+        : { success: false, error: "Native host unavailable for pairing response." },
+    );
+    return true;
+  }
   return false;
+});
+
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+  const origin = sender.origin || "";
+  if (origin !== "https://claude.ai") {
+    sendResponse({ success: false, error: "Untrusted origin" });
+    return true;
+  }
+  if (message.type === "ping") {
+    sendResponse({ success: true, exists: true });
+    return true;
+  }
+  if (message.type === "onboarding_task") {
+    chrome.runtime
+      .sendMessage({
+        type: "POPULATE_INPUT_TEXT",
+        prompt: message.payload?.prompt || "",
+      })
+      .catch(() => {});
+    sendResponse({ success: true });
+    return true;
+  }
+  if (message.type === "oauth_redirect") {
+    chrome.runtime
+      .sendMessage({
+        type: "OAUTH_REDIRECT",
+        payload: message.payload || null,
+      })
+      .catch(() => {});
+    sendResponse({ success: true });
+    return true;
+  }
+  sendResponse({ success: false, error: "Unsupported message type" });
+  return true;
 });
 
 chrome.commands?.onCommand?.addListener((command, tab) => {
@@ -451,6 +625,82 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+const MAX_GIF_FRAMES = 50;
+
+function appendGifFrame(tabId, base64, label) {
+  if (!gifRecording || gifRecording.tabId !== tabId || typeof base64 !== "string") {
+    return;
+  }
+  gifRecording.frames.push({ base64, label, at: Date.now() });
+  if (gifRecording.frames.length > MAX_GIF_FRAMES) {
+    gifRecording.frames.splice(0, gifRecording.frames.length - MAX_GIF_FRAMES);
+  }
+}
+
+async function captureGifFrameIfRecording(tabId, label) {
+  if (!gifRecording || gifRecording.tabId !== tabId) return;
+  const { base64 } = await takeScreenshot(tabId);
+  appendGifFrame(tabId, base64, label);
+}
+
+const DEFAULT_SHORTCUTS = [
+  {
+    id: "summarize-page",
+    command: "summarize",
+    title: "Summarize page",
+    prompt: "Summarize the current page with key points and next actions.",
+    isWorkflow: false,
+  },
+  {
+    id: "find-controls",
+    command: "find-controls",
+    title: "Find controls",
+    prompt: "Find key interactive controls on this page and describe what each does.",
+    isWorkflow: false,
+  },
+  {
+    id: "explain-screenshot",
+    command: "explain-screenshot",
+    title: "Explain screenshot",
+    prompt: "Capture a screenshot and explain what is shown.",
+    isWorkflow: true,
+  },
+];
+
+async function getShortcuts() {
+  const { shortcuts } = await chrome.storage.local.get(["shortcuts"]).catch(() => ({}));
+  if (!Array.isArray(shortcuts)) return DEFAULT_SHORTCUTS;
+  const normalized = shortcuts
+    .map((entry, index) => ({
+      id: typeof entry?.id === "string" && entry.id.trim() ? entry.id.trim() : `shortcut-${index + 1}`,
+      command:
+        typeof entry?.command === "string" && entry.command.trim()
+          ? entry.command.trim()
+          : `custom-${index + 1}`,
+      title:
+        typeof entry?.title === "string" && entry.title.trim()
+          ? entry.title.trim()
+          : "Custom shortcut",
+      prompt:
+        typeof entry?.prompt === "string" && entry.prompt.trim()
+          ? entry.prompt.trim()
+          : "Help me with this page.",
+      isWorkflow: Boolean(entry?.isWorkflow),
+    }))
+    .filter(entry => entry.prompt);
+  return normalized.length > 0 ? normalized : DEFAULT_SHORTCUTS;
+}
+
+async function isBrowserBatchEnabled() {
+  const { chromeExtBrowserBatchEnabled } = await chrome.storage.local
+    .get(["chromeExtBrowserBatchEnabled"])
+    .catch(() => ({}));
+  if (typeof chromeExtBrowserBatchEnabled === "boolean") {
+    return chromeExtBrowserBatchEnabled;
+  }
+  return true;
+}
+
 // --- Tool handlers ---
 const toolHandlers = {
   async tabs_context_mcp(args) {
@@ -503,12 +753,22 @@ const toolHandlers = {
   },
 
   async browser_batch(args) {
+    if (!(await isBrowserBatchEnabled())) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "browser_batch is disabled by policy for this runtime.",
+          },
+        ],
+      };
+    }
     if (!Array.isArray(args.actions)) {
       return { content: [{ type: "text", text: "actions must be an array" }] };
     }
     const results = [];
     for (const action of args.actions) {
-      const tool = action?.tool;
+      const tool = action?.tool || action?.name;
       if (!tool || tool === "browser_batch" || !toolHandlers[tool]) {
         results.push({ tool, error: `Unsupported batch tool: ${tool}` });
         break;
@@ -571,6 +831,7 @@ const toolHandlers = {
     const text = `Navigated to ${tab.url}${loading}.\n## Pages\n` +
       tabs.map((t, i) => `${i + 1}: ${t.url}${t.id === tabId ? " [selected]" : ""}`).join("\n");
 
+    await captureGifFrameIfRecording(tabId, "navigate");
     return { content: [{ type: "text", text }] };
   },
 
@@ -591,9 +852,7 @@ const toolHandlers = {
     switch (action) {
       case "screenshot": {
         const { base64, imageId } = await takeScreenshot(tabId);
-        if (gifRecording?.tabId === tabId) {
-          gifRecording.frames.push({ base64, label: "screenshot", at: Date.now() });
-        }
+        appendGifFrame(tabId, base64, "screenshot");
         // Get viewport dimensions for the response message
         let dims = "";
         try {
@@ -613,24 +872,28 @@ const toolHandlers = {
       case "left_click": {
         if (!coordinate) return { content: [{ type: "text", text: "coordinate is required for left_click" }] };
         await mouseClick(tabId, coordinate[0], coordinate[1], { modifiers });
+        await captureGifFrameIfRecording(tabId, "left_click");
         return { content: [{ type: "text", text: `Clicked at (${coordinate[0]}, ${coordinate[1]})` }] };
       }
 
       case "right_click": {
         if (!coordinate) return { content: [{ type: "text", text: "coordinate is required for right_click" }] };
         await mouseClick(tabId, coordinate[0], coordinate[1], { button: "right", modifiers });
+        await captureGifFrameIfRecording(tabId, "right_click");
         return { content: [{ type: "text", text: `Right-clicked at (${coordinate[0]}, ${coordinate[1]})` }] };
       }
 
       case "double_click": {
         if (!coordinate) return { content: [{ type: "text", text: "coordinate is required for double_click" }] };
         await mouseClick(tabId, coordinate[0], coordinate[1], { clickCount: 2, modifiers });
+        await captureGifFrameIfRecording(tabId, "double_click");
         return { content: [{ type: "text", text: `Double-clicked at (${coordinate[0]}, ${coordinate[1]})` }] };
       }
 
       case "triple_click": {
         if (!coordinate) return { content: [{ type: "text", text: "coordinate is required for triple_click" }] };
         await mouseClick(tabId, coordinate[0], coordinate[1], { clickCount: 3, modifiers });
+        await captureGifFrameIfRecording(tabId, "triple_click");
         return { content: [{ type: "text", text: `Triple-clicked at (${coordinate[0]}, ${coordinate[1]})` }] };
       }
 
@@ -638,6 +901,7 @@ const toolHandlers = {
         if (!coordinate) return { content: [{ type: "text", text: "coordinate is required for hover" }] };
         await dispatchMouse(tabId, "mouseMoved", coordinate[0], coordinate[1], { modifiers });
         await sleep(200);
+        await captureGifFrameIfRecording(tabId, "hover");
         return { content: [{ type: "text", text: `Hovered at (${coordinate[0]}, ${coordinate[1]})` }] };
       }
 
@@ -649,6 +913,7 @@ const toolHandlers = {
           await cdp(tabId, "Input.insertText", { text: char });
           await sleep(10);
         }
+        await captureGifFrameIfRecording(tabId, "type");
         return { content: [{ type: "text", text: `Typed "${args.text.substring(0, 50)}${args.text.length > 50 ? "..." : ""}"` }] };
       }
 
@@ -678,6 +943,7 @@ const toolHandlers = {
             await sleep(30);
           }
         }
+        await captureGifFrameIfRecording(tabId, "key");
         return { content: [{ type: "text", text: `Pressed ${repeat} key${repeat > 1 ? "s" : ""}: ${args.text}` }] };
       }
 
@@ -697,6 +963,7 @@ const toolHandlers = {
         });
         await sleep(300);
         const { base64 } = await takeScreenshot(tabId);
+        appendGifFrame(tabId, base64, "scroll");
         return {
           content: [
             { type: "text", text: `Scrolled ${dir} by ${amount} ticks at (${coordinate[0]}, ${coordinate[1]})` },
@@ -720,12 +987,14 @@ const toolHandlers = {
           });
         }
         await sleep(300);
+        await captureGifFrameIfRecording(tabId, "scroll_to");
         return { content: [{ type: "text", text: `Scrolled to target` }] };
       }
 
       case "wait": {
         const duration = Math.min(args.duration || 1, 30);
         await sleep(duration * 1000);
+        await captureGifFrameIfRecording(tabId, "wait");
         return { content: [{ type: "text", text: `Waited for ${duration} second${duration !== 1 ? "s" : ""}` }] };
       }
 
@@ -748,6 +1017,7 @@ const toolHandlers = {
           await sleep(20);
         }
         await dispatchMouse(tabId, "mouseReleased", ex, ey, { button: "left", modifiers });
+        await captureGifFrameIfRecording(tabId, "left_click_drag");
         return { content: [{ type: "text", text: `Dragged from (${sx}, ${sy}) to (${ex}, ${ey})` }] };
       }
 
@@ -850,8 +1120,24 @@ const toolHandlers = {
   },
 
   async javascript_tool(args) {
-    const { text, tabId } = args;
+    const tabId = Number(args.tabId);
+    const text =
+      args.text ||
+      args.code ||
+      args.script ||
+      args.expression ||
+      args.javascript;
     if (!(await isInGroup(tabId))) return { content: [{ type: "text", text: `Tab ${tabId} is not in the MCP group.` }] };
+    if (!text || typeof text !== "string") {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "javascript_tool requires code text in one of: text, code, script, expression, javascript.",
+          },
+        ],
+      };
+    }
 
     await ensureAttached(tabId);
     try {
@@ -951,8 +1237,18 @@ const toolHandlers = {
   },
 
   async resize_window(args) {
-    const { width, height, tabId } = args;
+    const width = Number(args.width);
+    const height = Number(args.height);
+    const tabId = Number(args.tabId);
     if (!(await isInGroup(tabId))) return { content: [{ type: "text", text: `Tab ${tabId} is not in the MCP group.` }] };
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      return { content: [{ type: "text", text: "width and height must be positive numbers." }] };
+    }
+    if (width > 7680 || height > 4320) {
+      return {
+        content: [{ type: "text", text: "resize_window dimensions exceed maximum 7680x4320." }],
+      };
+    }
 
     const tab = await chrome.tabs.get(tabId);
     await chrome.windows.update(tab.windowId, { width, height });
@@ -1034,9 +1330,10 @@ const toolHandlers = {
       const { base64 } = await takeScreenshot(tabId);
       gifRecording = {
         tabId,
-        frames: [{ base64, label: "start", at: Date.now() }],
+        frames: [],
         startedAt: Date.now(),
       };
+      appendGifFrame(tabId, base64, "start");
       return { content: [{ type: "text", text: "GIF recording started." }] };
     }
 
@@ -1045,7 +1342,7 @@ const toolHandlers = {
         return { content: [{ type: "text", text: "No GIF recording is active." }] };
       }
       const { base64 } = await takeScreenshot(tabId);
-      gifRecording.frames.push({ base64, label: "stop", at: Date.now() });
+      appendGifFrame(tabId, base64, "stop");
       gifRecording.stoppedAt = Date.now();
       return { content: [{ type: "text", text: `GIF recording stopped with ${gifRecording.frames.length} frame(s).` }] };
     }
@@ -1070,7 +1367,7 @@ const toolHandlers = {
         options: args.options,
       });
       if (!result?.success) {
-        return { content: [{ type: "text", text: `GIF export failed: ${result?.error || "unknown error"}` }] };
+        return { content: [{ type: "text", text: `Recording export failed: ${result?.error || "unknown error"}` }] };
       }
       await chrome.storage.local.set({
         exportedGifData: {
@@ -1086,22 +1383,79 @@ const toolHandlers = {
           saveAs: false,
         });
       }
-      return { content: [{ type: "text", text: `GIF exported: ${result.filename}` }] };
+      return { content: [{ type: "text", text: `Recording exported: ${result.filename}` }] };
     }
 
     return { content: [{ type: "text", text: `Unknown gif_creator action: ${action}` }] };
   },
 
   async shortcuts_list(args) {
-    return { content: [{ type: "text", text: "No shortcuts available. Shortcuts are not supported in this extension." }] };
+    const tabId = Number(args.tabId);
+    if (!(await isInGroup(tabId))) {
+      return { content: [{ type: "text", text: `Tab ${tabId} is not in the MCP group.` }] };
+    }
+    const shortcuts = await getShortcuts();
+    const response = shortcuts.map(shortcut => ({
+      id: shortcut.id,
+      command: shortcut.command,
+      title: shortcut.title,
+      isWorkflow: shortcut.isWorkflow,
+    }));
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({ shortcuts: response }, null, 2),
+        },
+      ],
+    };
   },
 
   async shortcuts_execute(args) {
-    return { content: [{ type: "text", text: "Shortcuts are not supported in this extension." }] };
-  },
+    const tabId = Number(args.tabId);
+    if (!(await isInGroup(tabId))) {
+      return { content: [{ type: "text", text: `Tab ${tabId} is not in the MCP group.` }] };
+    }
+    const shortcuts = await getShortcuts();
+    const requestedId =
+      typeof args.shortcutId === "string" ? args.shortcutId.trim() : "";
+    const requestedCommand =
+      typeof args.command === "string" ? args.command.trim().replace(/^\//, "") : "";
+    const shortcut = shortcuts.find(entry =>
+      (requestedId && entry.id === requestedId) ||
+      (requestedCommand && entry.command === requestedCommand),
+    );
+    if (!shortcut) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Shortcut not found. Call shortcuts_list to inspect available ids and commands.",
+          },
+        ],
+      };
+    }
 
-  async switch_browser(args) {
-    return { content: [{ type: "text", text: "Browser switching is not yet supported. The extension connects to whichever browser has it loaded (Chrome, Brave, or Edge). To switch, disable the extension in the current browser, enable it in the target browser, and restart both." }] };
+    const tab = await chrome.tabs.get(tabId).catch(() => null);
+    const tabContext = tab
+      ? `\n\nActive tab:\n- Title: ${tab.title || "Untitled"}\n- URL: ${tab.url || ""}\n- tabId: ${tab.id}`
+      : "";
+    const prompt = `${shortcut.prompt}${tabContext}`.trim();
+    await chrome.runtime
+      .sendMessage({
+        type: "POPULATE_INPUT_TEXT",
+        prompt,
+      })
+      .catch(() => {});
+    await openProductSurface(tabId).catch(() => {});
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Executed shortcut ${shortcut.id} (${shortcut.command}).`,
+        },
+      ],
+    };
   },
 
   async update_plan(args) {

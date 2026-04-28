@@ -82,14 +82,140 @@ body {
   border-bottom: 1px solid var(--border-300);
 }
 
+.hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--brand-100) 18%, transparent), transparent 44%),
+    var(--bg-100);
+}
+
+.eyebrow {
+  margin-bottom: 6px;
+  color: var(--brand-100);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
 .panel-footer {
   border-top: 1px solid var(--border-300);
   color: var(--text-500);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .stack {
   display: grid;
   gap: 14px;
+}
+
+.panel-content {
+  align-content: start;
+  overflow: auto;
+}
+
+.conversation-card {
+  display: grid;
+  gap: 14px;
+  border-radius: 24px;
+  padding: 16px;
+  background: var(--bg-000);
+  border: 1px solid var(--border-300);
+  box-shadow: 0 10px 30px hsl(0 0% 0% / 0.06);
+}
+
+.message-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  background: var(--brand-100);
+  color: white;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.message-bubble {
+  min-width: 0;
+}
+
+.assistant-greeting {
+  margin: 0;
+  color: var(--text-100);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  font-style: italic;
+  line-height: 1.35;
+}
+
+.shortcut-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  min-height: 30px;
+  border-radius: 999px;
+  background: var(--bg-100);
+  font-size: 12px;
+}
+
+.composer {
+  display: grid;
+  gap: 10px;
+}
+
+.composer textarea {
+  min-height: 92px;
+  border-radius: 18px;
+  background: var(--bg-100);
+}
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.permission-banner {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  border: 1px solid color-mix(in srgb, var(--warning-100) 38%, var(--border-300));
+  border-radius: 16px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--warning-100) 10%, var(--bg-000));
+}
+
+.permission-banner p {
+  margin-top: 4px;
 }
 
 .content {
@@ -103,6 +229,112 @@ body {
   padding: 14px;
   background: var(--bg-000);
   box-shadow: 0 1px 2px hsl(0 0% 0% / 0.04);
+}
+
+.card-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.meta-grid div {
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--bg-100);
+}
+
+.meta-grid dt {
+  color: var(--text-500);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.meta-grid dd {
+  margin: 4px 0 0;
+  color: var(--text-100);
+  overflow-wrap: anywhere;
+}
+
+.tab-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.favicon-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background:
+    linear-gradient(135deg, var(--brand-100), color-mix(in srgb, var(--brand-100) 40%, var(--bg-000))),
+    var(--brand-100);
+  flex: 0 0 auto;
+}
+
+.tab-copy {
+  min-width: 0;
+}
+
+.tab-title {
+  color: var(--text-100);
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-url {
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.capability-grid {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.capability {
+  border-radius: 11px;
+  padding: 10px;
+  background: var(--bg-100);
+}
+
+.capability strong,
+.capability span {
+  display: block;
+}
+
+.capability span {
+  margin-top: 3px;
+  color: var(--text-500);
+}
+
+.timeline {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--text-300);
+}
+
+.timeline li::marker {
+  color: var(--brand-100);
 }
 
 .card-title,
@@ -149,6 +381,13 @@ button,
   color: var(--text-100);
   font: inherit;
   text-decoration: none;
+}
+
+button.compact,
+.button.compact {
+  min-height: 30px;
+  padding: 5px 10px;
+  font-size: 12px;
 }
 
 button.primary,

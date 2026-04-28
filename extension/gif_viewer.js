@@ -2,7 +2,7 @@ chrome.storage.local.get("exportedGifData", ({ exportedGifData }) => {
   const content = document.getElementById("content")
   if (!content) return
   if (!exportedGifData?.dataUrl) {
-    content.textContent = "No GIF export data found."
+    content.textContent = "No recording export data found."
     return
   }
   content.innerHTML = ""
@@ -11,7 +11,8 @@ chrome.storage.local.get("exportedGifData", ({ exportedGifData }) => {
   image.alt = "Generated browser recording"
   const link = document.createElement("a")
   link.href = exportedGifData.dataUrl
-  link.download = exportedGifData.filename || "open-claude.gif"
-  link.textContent = "Download GIF"
+  link.download = exportedGifData.filename || "open-claude.png"
+  const extension = (exportedGifData.filename || "").split(".").pop()?.toUpperCase() || "IMAGE"
+  link.textContent = `Download ${extension}`
   content.append(image, link)
 })

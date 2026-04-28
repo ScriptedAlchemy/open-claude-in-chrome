@@ -277,9 +277,10 @@ export const CHROME_BROWSER_TOOLS = [
             type: "object",
             properties: {
               tool: { type: "string" },
+              name: { type: "string" },
               input: { type: "object", additionalProperties: true },
             },
-            required: ["tool", "input"],
+            required: ["input"],
             additionalProperties: true,
           },
         },
@@ -313,10 +314,6 @@ export const CHROME_BROWSER_TOOLS = [
       properties: {},
       additionalProperties: true,
     },
-  },
-  {
-    name: "switch_browser",
-    description: "Switch which Chrome browser is used for browser automation.",
   },
   {
     name: "update_plan",

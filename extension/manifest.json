@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Open Claude in Chrome",
   "version": "1.0.0",
-  "description": "Claude in Chrome, open source. No domain blocklist. Any Chromium browser.",
+  "description": "Open-source Claude in Chrome companion for local OpenClaude runtime on Chromium browsers.",
   "minimum_chrome_version": "116",
   "action": {
     "default_title": "Open Claude"

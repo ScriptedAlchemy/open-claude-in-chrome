@@ -518,7 +518,8 @@ server.tool(
   "Execute multiple browser tool actions in order. Use this for predictable multi-step browser sequences.",
   {
     actions: z.array(z.object({
-      tool: z.string(),
+      tool: z.string().optional(),
+      name: z.string().optional(),
       input: z.record(z.any()).optional(),
     })).describe("Ordered browser tool actions to execute."),
   },
@@ -621,7 +622,11 @@ server.tool(
   "Execute JavaScript code in the context of the current page. The code runs in the page's context and can interact with the DOM, window object, and page variables. Returns the result of the last expression or any thrown errors. If you don't have a valid tab ID, use tabs_context_mcp first to get available tabs.",
   {
     action: z.literal("javascript_exec").describe("Must be set to 'javascript_exec'"),
-    text: z.string().describe("The JavaScript code to execute. The code will be evaluated in the page context. The result of the last expression will be returned automatically. Do NOT use 'return' statements - just write the expression you want to evaluate (e.g., 'window.myData.value' not 'return window.myData.value'). You can access and modify the DOM, call page functions, and interact with page variables."),
+    text: z.string().optional().describe("The JavaScript code to execute. The code will be evaluated in the page context. The result of the last expression will be returned automatically. Do NOT use 'return' statements - just write the expression you want to evaluate (e.g., 'window.myData.value' not 'return window.myData.value'). You can access and modify the DOM, call page functions, and interact with page variables."),
+    code: z.string().optional().describe("Alias for text; JavaScript code to execute."),
+    script: z.string().optional().describe("Alias for text; JavaScript code to execute."),
+    expression: z.string().optional().describe("Alias for text; JavaScript code to execute."),
+    javascript: z.string().optional().describe("Alias for text; JavaScript code to execute."),
     tabId: z.number().describe("Tab ID to execute the code in. Must be a tab in the current group. Use tabs_context_mcp first if you don't have a valid tab ID."),
   },
   async (args) => callTool("javascript_tool", args)
@@ -702,15 +707,7 @@ server.tool(
   async (args) => callTool("shortcuts_execute", args)
 );
 
-// 16. switch_browser
-server.tool(
-  "switch_browser",
-  "Switch which Chrome browser is used for browser automation. Call this when the user wants to connect to a different Chrome browser. Broadcasts a connection request to all Chrome browsers with the extension installed \u2014 the user clicks 'Connect' in the desired browser.",
-  {},
-  async (args) => callTool("switch_browser", args)
-);
-
-// 17. update_plan
+// 16. update_plan
 server.tool(
   "update_plan",
   "Present a plan to the user for approval before taking actions. The user will see the domains you intend to visit and your approach. Once approved, you can proceed with actions on the approved domains without additional permission prompts.",
@@ -721,7 +718,7 @@ server.tool(
   async (args) => callTool("update_plan", args)
 );
 
-// 18. upload_image
+// 17. upload_image
 server.tool(
   "upload_image",
   "Upload a previously captured screenshot or user-uploaded image to a file input or drag & drop target. Supports two approaches: (1) ref - for targeting specific elements, especially hidden file inputs, (2) coordinate - for drag & drop to visible locations like Google Docs. Provide either ref or coordinate, not both.",
