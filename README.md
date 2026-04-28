@@ -143,7 +143,7 @@ No build step. All files are plain JavaScript. After pulling or editing code:
 | What changed | What to do |
 |---|---|
 | `extension/background.js` or `extension/content.js` or `extension/manifest.json` | Reload the extension: `brave://extensions` > click the reload icon |
-| `host/mcp-server.js` | Kill stale servers and reconnect: `pkill -f "node.*mcp-server"` then restart or reconnect OpenClaude |
+| Chrome runtime bridge | Restart or reconnect OpenClaude |
 | `host/native-host.js` | Restart the browser (close all windows, reopen) |
 | `install.sh` or native host name changed | Re-run `bun run chrome:install:host`, restart browser |
 
@@ -152,7 +152,7 @@ No build step. All files are plain JavaScript. After pulling or editing code:
 If things are broken and you're not sure why:
 
 ```bash
-# 1. Kill all MCP servers
+# 1. Stop stale Chrome bridge processes
 pkill -f "node.*mcp-server"
 
 # 2. Re-run install
@@ -170,11 +170,12 @@ bun run chrome:install:host
 
 Multiple OpenClaude sessions can share the same browser extension. The first session becomes the "primary" (owns the TCP port), and subsequent sessions connect as clients through the primary. All sessions can use the browser simultaneously.
 
-If a session disconnects, kill stale servers and reconnect:
+If a session disconnects, reconnect from OpenClaude. If a stale local bridge is
+still holding the port, stop it and reconnect:
 
 ```bash
 pkill -f "node.*mcp-server"
-# then /mcp in each OpenClaude session
+# then reconnect Chrome from each OpenClaude session
 ```
 
 ## Troubleshooting
@@ -190,15 +191,15 @@ pkill -f "node.*mcp-server"
    - **Edge (macOS)**: `~/Library/Application Support/Microsoft Edge/NativeMessagingHosts/com.openclaude.chrome.json`
 5. Confirm the manifest's `allowed_origins` includes the ID of the loaded unpacked extension
 
-### MCP server not found
+### Built-in Chrome runtime not found
 
 Do not add this extension through manual MCP config. Rebuild/restart OpenClaude
-so the built-in `claude-in-chrome` runtime can load the bundled
-`open-claude-in-chrome` package.
+so the built-in Chrome runtime can load the bundled `open-claude-in-chrome`
+package.
 
 ### "Browser extension is not connected"
 
-The MCP server started but the native host hasn't connected. Try:
+The built-in Chrome runtime started but the native host hasn't connected. Try:
 1. Open any webpage (wakes the service worker)
 2. Check service worker logs: `chrome://extensions` > "Inspect views: service worker"
 3. Verify `host/native-host-wrapper.sh` exists
@@ -211,7 +212,8 @@ Stale MCP server processes from previous sessions may be holding the port. Fix:
 pkill -f "node.*mcp-server"
 ```
 
-Then `/mcp` in Claude Code to reconnect. The fresh server will bind the port and accept the native host connection.
+Then reconnect Chrome from OpenClaude. The fresh runtime will bind the port and
+accept the native host connection.
 
 ### Does the unpacked extension ID change?
 
