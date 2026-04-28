@@ -19,6 +19,11 @@ import { z } from "zod";
 
 
 const DEFAULT_PORT = 18765;
+const DEBUG = process.env.OPENCLAUDE_CHROME_MCP_DEBUG === "1";
+
+function debugLog(message) {
+  if (DEBUG) process.stderr.write(message);
+}
 
 function getPort() {
   const configPath = path.join(os.homedir(), ".config", "open-claude-in-chrome", "config.json");
@@ -253,7 +258,7 @@ function setupNativeHostConnection(socket, initialBuffer) {
 function setupClientConnection(socket, initialBuffer) {
   const clientId = String(++clientIdCounter);
   clientSockets.set(clientId, socket);
-  process.stderr.write(`Client MCP server connected (client ${clientId})\n`);
+  debugLog(`Client MCP server connected (client ${clientId})\n`);
 
   // Send ack
   socket.write(JSON.stringify({ type: "client_ack", clientId }) + "\n");
@@ -300,7 +305,7 @@ function setupClientConnection(socket, initialBuffer) {
     for (const [prefixedId, info] of clientRequestMap) {
       if (info.clientId === clientId) clientRequestMap.delete(prefixedId);
     }
-    process.stderr.write(`Client MCP server disconnected (client ${clientId})\n`);
+    debugLog(`Client MCP server disconnected (client ${clientId})\n`);
   });
 }
 
@@ -308,11 +313,11 @@ function setupClientConnection(socket, initialBuffer) {
 
 function startClientMode() {
   mode = "client";
-  process.stderr.write(`Port ${TCP_PORT} in use. Connecting as client to primary MCP server...\n`);
+  debugLog(`Port ${TCP_PORT} in use. Connecting as client to primary MCP server...\n`);
 
   function connect() {
     primarySocket = net.createConnection(TCP_PORT, "127.0.0.1", () => {
-      process.stderr.write(`Connected to primary MCP server on :${TCP_PORT}\n`);
+      debugLog(`Connected to primary MCP server on :${TCP_PORT}\n`);
       // Send handshake
       primarySocket.write(JSON.stringify({ type: "client_hello" }) + "\n");
     });
@@ -328,7 +333,7 @@ function startClientMode() {
           const msg = JSON.parse(line);
           if (msg.type === "client_ack") continue;
           if (msg.type === "error") {
-            process.stderr.write(`Primary server error: ${msg.error}\n`);
+            debugLog(`Primary server error: ${msg.error}\n`);
             continue;
           }
           // Tool response routed back from primary
@@ -347,7 +352,7 @@ function startClientMode() {
     });
 
     primarySocket.on("error", (err) => {
-      process.stderr.write(`Client connection error: ${err.message}\n`);
+      debugLog(`Client connection error: ${err.message}\n`);
     });
 
     primarySocket.on("close", () => {
@@ -397,7 +402,7 @@ async function start() {
         startClientMode();
         resolve();
       } else {
-        process.stderr.write(`TCP server error: ${err.message}\n`);
+        debugLog(`TCP server error: ${err.message}\n`);
         process.exit(1);
       }
     });
@@ -405,7 +410,7 @@ async function start() {
     tcpServer.listen(TCP_PORT, "127.0.0.1", () => {
       mode = "primary";
       writePidfile();
-      process.stderr.write(`Primary MCP server listening on :${TCP_PORT}\n`);
+      debugLog(`Primary MCP server listening on :${TCP_PORT}\n`);
       resolve();
     });
   });
