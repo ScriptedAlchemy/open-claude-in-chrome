@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test"
 
 describe("open-claude-in-chrome package exports", () => {
-  test("main entrypoint loads", async () => {
+  test("workspace package entrypoint loads", async () => {
+    const mod = await import("open-claude-in-chrome")
+    expect(typeof mod.resolveLogger).toBe("function")
+  })
+
+  test("source entrypoint loads", async () => {
     const mod = await import("../src/node/index.js")
     expect(typeof mod.resolveLogger).toBe("function")
   })
