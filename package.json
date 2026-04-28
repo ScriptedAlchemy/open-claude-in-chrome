@@ -2,8 +2,13 @@
   "name": "open-claude-in-chrome",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/node/index.js",
+    "./protocol": "./src/shared/protocol.js"
+  },
   "scripts": {
-    "lint": "node --check ./host/mcp-server.js && node --check ./host/native-host.js && node --check ./extension/background.js && node --check ./extension/content.js",
+    "lint": "node --check ./host/mcp-server.js && node --check ./host/native-host.js && node --check ./extension/background.js && node --check ./extension/content.js && node --check ./src/node/index.js && node --check ./src/shared/protocol.js",
+    "test": "bun test ./test",
     "install:host": "bash ./install.sh"
   },
   "dependencies": {
