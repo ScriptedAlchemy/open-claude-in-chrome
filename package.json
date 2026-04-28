@@ -10,7 +10,7 @@
     "./compat-server": "./src/host/compat-server.js"
   },
   "scripts": {
-    "lint": "node --check ./host/mcp-server.js && node --check ./host/native-host.js && node --check ./extension/background.js && node --check ./extension/content.js && node --check ./src/node/index.js",
+    "lint": "node --check ./host/mcp-server.js && node --check ./host/native-host.js && node --check ./extension/background.js && node --check ./extension/content.js && node --check ./src/node/index.js && node --check ./src/shared/protocol.js",
     "test": "bun test ./test",
     "install:host": "bash ./install.sh",
     "sync:extension": "node ./scripts/sync-extension.mjs"
