@@ -7,8 +7,8 @@
 // - Element finding by text/attributes
 
 (function () {
-  if (window.__unblockedChromeLoaded) return;
-  window.__unblockedChromeLoaded = true;
+  if (window.__openClaudeChromeLoaded) return;
+  window.__openClaudeChromeLoaded = true;
 
   // --- Element reference map ---
   // Persistent ref IDs stored as WeakRefs so GC still works
@@ -450,8 +450,7 @@
     return false;
   });
 
-  // Expose globally for executeScript fallback
-  window.__unblockedChrome = {
+  window.__openClaudeChrome = {
     generateAccessibilityTree,
     getPageText,
     findElements,

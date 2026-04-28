@@ -7,10 +7,7 @@ self.addEventListener("unhandledrejection", (event) => {
   event.preventDefault();
 });
 
-const NATIVE_HOST_NAMES = [
-  "com.openclaude.chrome",
-  "com.anthropic.open_claude_in_chrome",
-];
+const NATIVE_HOST_NAME = "com.openclaude.chrome";
 
 // --- State ---
 let nativePort = null;
@@ -34,15 +31,10 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // --- Native messaging ---
 function connectNativeHost() {
   if (nativePort) return;
-  const [hostName, ...remainingHostNames] = NATIVE_HOST_NAMES;
-  connectNativeHostByName(hostName, remainingHostNames);
-}
-
-function connectNativeHostByName(hostName, fallbackHostNames = []) {
   try {
-    const port = chrome.runtime.connectNative(hostName);
+    const port = chrome.runtime.connectNative(NATIVE_HOST_NAME);
     nativePort = port;
-    connectedNativeHostName = hostName;
+    connectedNativeHostName = NATIVE_HOST_NAME;
 
     port.onMessage.addListener((msg) => {
       if (msg.type === "tool_request" && msg.id) {
@@ -53,23 +45,14 @@ function connectNativeHostByName(hostName, fallbackHostNames = []) {
     });
 
     port.onDisconnect.addListener(() => {
+      void chrome.runtime.lastError?.message;
       if (nativePort === port) nativePort = null;
-      if (connectedNativeHostName === hostName) connectedNativeHostName = null;
-      if (fallbackHostNames.length > 0) {
-        const [nextHostName, ...rest] = fallbackHostNames;
-        connectNativeHostByName(nextHostName, rest);
-        return;
-      }
+      if (connectedNativeHostName === NATIVE_HOST_NAME) connectedNativeHostName = null;
       setTimeout(connectNativeHost, 2000);
     });
   } catch (e) {
     nativePort = null;
     connectedNativeHostName = null;
-    if (fallbackHostNames.length > 0) {
-      const [nextHostName, ...rest] = fallbackHostNames;
-      connectNativeHostByName(nextHostName, rest);
-      return;
-    }
     setTimeout(connectNativeHost, 2000);
   }
 }
@@ -107,7 +90,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "get_status") {
     sendResponse({
       connected: Boolean(nativePort),
-      hostName: connectedNativeHostName || NATIVE_HOST_NAMES[0],
+      hostName: connectedNativeHostName || NATIVE_HOST_NAME,
     });
     return true;
   }
@@ -982,7 +965,7 @@ const toolHandlers = {
       await ensureAttached(tabId);
       const result = await cdp(tabId, "Runtime.evaluate", {
         expression: `(() => {
-          const el = window.__unblockedChrome?.resolveRef?.("${ref}");
+          const el = window.__openClaudeChrome?.resolveRef?.("${ref}");
           if (!el) return null;
           return el.tagName.toLowerCase();
         })()`,
@@ -995,7 +978,7 @@ const toolHandlers = {
         const doc = await cdp(tabId, "DOM.getDocument", {});
         const nodeResult = await cdp(tabId, "Runtime.evaluate", {
           expression: `(() => {
-            const el = window.__unblockedChrome?.resolveRef?.("${ref}");
+            const el = window.__openClaudeChrome?.resolveRef?.("${ref}");
             if (el) el.scrollIntoView();
             return true;
           })()`,

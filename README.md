@@ -89,21 +89,15 @@ bun run chrome:install:host -- <chrome-id> <brave-id> <arc-id>
 
 Close **all** windows and reopen. The browser reads native messaging host configs on startup.
 
-### Step 5: Add to Claude Code
+### Step 5: Enable in OpenClaude
 
-```bash
-claude mcp add open-claude-in-chrome -- node "$(pwd)/packages/open-claude-in-chrome/host/mcp-server.js"
-```
-
-From the repo root, find the absolute path with:
-
-```bash
-echo "node $(pwd)/packages/open-claude-in-chrome/host/mcp-server.js"
-```
+Enable Chrome integration from OpenClaude Settings or with `/chrome`. OpenClaude
+loads the Chrome MCP runtime as a built-in package; do not add a project or user
+`.mcp.json` entry for this extension.
 
 ## Verification
 
-Start a new Claude Code session and test:
+Start a new OpenClaude session and test:
 
 ```
 Navigate to reddit.com and take a screenshot
@@ -135,10 +129,10 @@ Core tools and current parity aliases:
 | `resize_window` | Resize browser window |
 | `upload_image` | Upload screenshot to file input |
 | `file_upload` | Prepare a file upload target |
-| `gif_creator` | GIF recording (stub) |
-| `shortcuts_list` | List shortcuts (stub) |
-| `shortcuts_execute` | Run shortcut (stub) |
-| `switch_browser` | Switch browser (stub) |
+| `gif_creator` | GIF recording/export |
+| `shortcuts_list` | List shortcuts |
+| `shortcuts_execute` | Run shortcut |
+| `switch_browser` | Switch browser |
 | `update_plan` | Present plan (auto-approved) |
 | `turn_answer_start` | Browser turn-start compatibility signal |
 
@@ -149,9 +143,9 @@ No build step. All files are plain JavaScript. After pulling or editing code:
 | What changed | What to do |
 |---|---|
 | `extension/background.js` or `extension/content.js` or `extension/manifest.json` | Reload the extension: `brave://extensions` > click the reload icon |
-| `host/mcp-server.js` | Kill stale servers and reconnect: `pkill -f "node.*mcp-server"` then `/mcp` in Claude Code |
+| `host/mcp-server.js` | Kill stale servers and reconnect: `pkill -f "node.*mcp-server"` then restart or reconnect OpenClaude |
 | `host/native-host.js` | Restart the browser (close all windows, reopen) |
-| `install.sh` or native host name changed | Re-run `bun run chrome:install:host`, restart browser, re-add MCP |
+| `install.sh` or native host name changed | Re-run `bun run chrome:install:host`, restart browser |
 
 ### Quick reset (nuclear option)
 
@@ -168,19 +162,19 @@ bun run chrome:install:host
 
 # 4. Reload extension in brave://extensions
 
-# 5. Reconnect in Claude Code
+# 5. Reconnect in OpenClaude
 # /mcp
 ```
 
 ## Multiple Sessions
 
-Multiple Claude Code sessions can share the same browser extension. The first session becomes the "primary" (owns the TCP port), and subsequent sessions connect as clients through the primary. All sessions can use the browser simultaneously.
+Multiple OpenClaude sessions can share the same browser extension. The first session becomes the "primary" (owns the TCP port), and subsequent sessions connect as clients through the primary. All sessions can use the browser simultaneously.
 
 If a session disconnects, kill stale servers and reconnect:
 
 ```bash
 pkill -f "node.*mcp-server"
-# then /mcp in each Claude Code session
+# then /mcp in each OpenClaude session
 ```
 
 ## Troubleshooting
@@ -198,10 +192,9 @@ pkill -f "node.*mcp-server"
 
 ### MCP server not found
 
-Use an absolute path:
-```bash
-claude mcp add open-claude-in-chrome -- node "$(pwd)/packages/open-claude-in-chrome/host/mcp-server.js"
-```
+Do not add this extension through manual MCP config. Rebuild/restart OpenClaude
+so the built-in `claude-in-chrome` runtime can load the bundled
+`open-claude-in-chrome` package.
 
 ### "Browser extension is not connected"
 

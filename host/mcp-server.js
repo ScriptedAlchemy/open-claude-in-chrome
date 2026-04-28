@@ -7,7 +7,7 @@
 // - PRIMARY: Owns the TCP port, accepts native host + client connections
 // - CLIENT: Port already taken by another session, connects as a client
 //
-// This allows multiple Claude Code sessions to share one browser extension.
+// This allows multiple OpenClaude sessions to share one browser extension.
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -380,10 +380,7 @@ function startClientMode() {
 
 async function start() {
   // Clean up stale pidfiles (but don't kill live servers)
-  const pidfiles = [
-    pidfilePath,
-    path.join(os.tmpdir(), `unblocked-chrome-mcp-${TCP_PORT}.pid`),
-  ];
+  const pidfiles = [pidfilePath];
   for (const pf of pidfiles) {
     try {
       const oldPid = parseInt(fs.readFileSync(pf, "utf-8").trim(), 10);

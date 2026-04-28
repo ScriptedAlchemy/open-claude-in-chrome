@@ -73,12 +73,10 @@ describe("extension product surface", () => {
     expect(Object.keys(managedSchema.properties)).toEqual(["blockedUrlPatterns"])
   })
 
-  test("uses OpenClaude native host as the primary runtime identity", () => {
+  test("uses only the OpenClaude native host runtime identity", () => {
     const background = readFileSync(join(extensionRoot, "background.js"), "utf8")
     expect(background).toContain('"com.openclaude.chrome"')
-    expect(background.indexOf('"com.openclaude.chrome"')).toBeLessThan(
-      background.indexOf('"com.anthropic.open_claude_in_chrome"'),
-    )
+    expect(background).not.toContain("com.anthropic")
   })
 
   test("runs accessibility tree in all frames at document_start", () => {

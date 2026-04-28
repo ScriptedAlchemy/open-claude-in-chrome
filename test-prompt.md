@@ -1,6 +1,6 @@
 # Open Claude in Chrome — Integration Test Prompt
 
-Copy and paste everything below the line into a new Claude Code session that has the `open-claude-in-chrome` MCP configured.
+Copy and paste everything below the line into a new OpenClaude session with Chrome integration enabled.
 
 ---
 
@@ -16,7 +16,7 @@ Execute these steps in order:
 3b. Call `tabs_create` to verify the compatibility alias can create a third tab. Record its tab ID as TAB_3.
 
 ## Navigation + Window
-4. Call `navigate` to go to `https://www.reddit.com` in TAB_1. (This domain is blocked in the official Claude in Chrome extension — if this works, the unblocked extension is functioning.)
+4. Call `navigate` to go to `https://www.reddit.com` in TAB_1. (This domain is blocked in the official Claude in Chrome extension — if this works, the OpenClaude-owned extension is functioning.)
 5. Call `resize_window` to set the window to 1280x800 using TAB_1.
 
 ## Screenshots + Reading
