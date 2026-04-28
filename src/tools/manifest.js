@@ -221,8 +221,93 @@ export const CHROME_BROWSER_TOOLS = [
     },
   },
   {
+    name: "tabs_context",
+    description: "Alias for tabs_context_mcp.",
+    inputSchema: {
+      type: "object",
+      properties: { createIfEmpty: { type: "boolean" } },
+      additionalProperties: true,
+    },
+  },
+  {
     name: "tabs_create_mcp",
     description: "Create a new tab in the Claude in Chrome group.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: true,
+    },
+  },
+  {
+    name: "tabs_create",
+    description: "Alias for tabs_create_mcp.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: true,
+    },
+  },
+  {
+    name: "tabs_close_mcp",
+    description:
+      "Close a tab in the current Claude in Chrome group by tab ID.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tabId: {
+          type: "integer",
+          description:
+            "The ID of the tab to close. Use tabs_context_mcp first to get valid tab IDs.",
+        },
+      },
+      required: ["tabId"],
+      additionalProperties: true,
+    },
+  },
+  {
+    name: "browser_batch",
+    description:
+      "Execute multiple browser tool actions in order. Use this for predictable multi-step browser sequences.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        actions: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              tool: { type: "string" },
+              input: { type: "object", additionalProperties: true },
+            },
+            required: ["tool", "input"],
+            additionalProperties: true,
+          },
+        },
+      },
+      required: ["actions"],
+      additionalProperties: true,
+    },
+  },
+  {
+    name: "file_upload",
+    description:
+      "Prepare a file upload target in the current page.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tabId: tabIdProperty,
+        ref: { type: "string" },
+        coordinate: coordinateProperty,
+        filename: { type: "string" },
+      },
+      required: ["tabId"],
+      additionalProperties: true,
+    },
+  },
+  {
+    name: "turn_answer_start",
+    description:
+      "Signal that a browser-answer turn has started. This is a compatibility no-op for OpenClaude.",
     inputSchema: {
       type: "object",
       properties: {},

@@ -402,6 +402,51 @@ const toolHandlers = {
     return result;
   },
 
+  async tabs_context(args) {
+    return toolHandlers.tabs_context_mcp(args);
+  },
+
+  async tabs_create(args) {
+    return toolHandlers.tabs_create_mcp(args);
+  },
+
+  async tabs_close_mcp(args) {
+    const tabId = Number(args.tabId);
+    if (!Number.isInteger(tabId)) {
+      return { content: [{ type: "text", text: "tabId must be an integer" }] };
+    }
+    if (!(await isInGroup(tabId))) {
+      return { content: [{ type: "text", text: `Tab ${tabId} is not in the MCP group.` }] };
+    }
+    await chrome.tabs.remove(tabId);
+    const tabs = tabGroupId === null ? [] : await chrome.tabs.query({ groupId: tabGroupId }).catch(() => []);
+    tabGroupTabs = new Set(tabs.map((tab) => tab.id));
+    if (tabs.length === 0) {
+      tabGroupId = null;
+    }
+    const result = formatTabContext(tabs);
+    result.content[0].text = `Closed tab ${tabId}.\n\n` + result.content[0].text;
+    return result;
+  },
+
+  async browser_batch(args) {
+    if (!Array.isArray(args.actions)) {
+      return { content: [{ type: "text", text: "actions must be an array" }] };
+    }
+    const results = [];
+    for (const action of args.actions) {
+      const tool = action?.tool;
+      if (!tool || tool === "browser_batch" || !toolHandlers[tool]) {
+        results.push({ tool, error: `Unsupported batch tool: ${tool}` });
+        break;
+      }
+      const result = await toolHandlers[tool](action.input || {});
+      results.push({ tool, result });
+      if (result?.content?.[0]?.text?.startsWith("Error:")) break;
+    }
+    return { content: [{ type: "text", text: JSON.stringify({ results }, null, 2) }] };
+  },
+
   async navigate(args) {
     const { url, tabId } = args;
     if (!(await isInGroup(tabId))) return { content: [{ type: "text", text: `Tab ${tabId} is not in the MCP group.` }] };
@@ -873,6 +918,26 @@ const toolHandlers = {
     }
 
     return { content: [{ type: "text", text: `Image upload for ref=${ref}, coordinate=${coordinate} — use drag & drop or file input.` }] };
+  },
+
+  async file_upload(args) {
+    const { tabId, ref, coordinate, filename = "upload" } = args;
+    if (!(await isInGroup(tabId))) return { content: [{ type: "text", text: `Tab ${tabId} is not in the MCP group.` }] };
+    if (!ref && !coordinate) {
+      return { content: [{ type: "text", text: "ref or coordinate is required for file_upload" }] };
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Prepared file upload target (${ref ? `ref=${ref}` : `coordinate=${coordinate}`}) for ${filename}. Browser extensions cannot set arbitrary local file paths without a user gesture; ask the user to select the file if the chooser opens.`,
+        },
+      ],
+    };
+  },
+
+  async turn_answer_start() {
+    return { content: [{ type: "text", text: "Browser answer turn started." }] };
   },
 
   async gif_creator(args) {

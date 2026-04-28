@@ -90,6 +90,12 @@ function sendToExtension(tool, args) {
   });
 }
 
+function normalizeToolName(toolName) {
+  if (toolName === "tabs_context") return "tabs_context_mcp";
+  if (toolName === "tabs_create") return "tabs_create_mcp";
+  return toolName;
+}
+
 // --- Pidfile management ---
 
 const pidfilePath = path.join(os.tmpdir(), `open-claude-in-chrome-mcp-${TCP_PORT}.pid`);
@@ -125,7 +131,6 @@ process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 process.on("SIGHUP", shutdown);
 process.stdin.on("end", shutdown);
-process.stdin.resume();
 
 // --- Primary mode: handle incoming TCP connections ---
 
@@ -434,7 +439,7 @@ function mixedResult(parts) {
 
 async function callTool(toolName, args) {
   try {
-    const result = await sendToExtension(toolName, args);
+    const result = await sendToExtension(normalizeToolName(toolName), args);
     if (typeof result === "string") return textResult(result);
     if (result && result.content) return result;
     return textResult(JSON.stringify(result, null, 2));
@@ -443,7 +448,7 @@ async function callTool(toolName, args) {
   }
 }
 
-// --- MCP Server with all 18 tools ---
+// --- MCP Server tool registration ---
 
 const server = new McpServer({
   name: "open-claude-in-chrome",
@@ -486,6 +491,41 @@ server.tool(
   "Creates a new empty tab in the MCP tab group. CRITICAL: You must get the context using tabs_context_mcp at least once before using other browser automation tools so you know what tabs exist.",
   {},
   async (args) => callTool("tabs_create_mcp", args)
+);
+
+server.tool(
+  "tabs_context",
+  "Alias for tabs_context_mcp.",
+  { createIfEmpty: z.boolean().optional() },
+  async (args) => callTool("tabs_context", args)
+);
+
+server.tool(
+  "tabs_create",
+  "Alias for tabs_create_mcp.",
+  {},
+  async (args) => callTool("tabs_create", args)
+);
+
+server.tool(
+  "tabs_close_mcp",
+  "Close a tab in the MCP tab group by its tab ID.",
+  {
+    tabId: z.number().int().describe("Tab ID to close. Must be in the current MCP tab group."),
+  },
+  async (args) => callTool("tabs_close_mcp", args)
+);
+
+server.tool(
+  "browser_batch",
+  "Execute multiple browser tool actions in order. Use this for predictable multi-step browser sequences.",
+  {
+    actions: z.array(z.object({
+      tool: z.string(),
+      input: z.record(z.any()).optional(),
+    })).describe("Ordered browser tool actions to execute."),
+  },
+  async (args) => callTool("browser_batch", args)
 );
 
 // 3. navigate
@@ -696,6 +736,25 @@ server.tool(
     filename: z.string().optional().describe('Optional filename for the uploaded file (default: "image.png")'),
   },
   async (args) => callTool("upload_image", args)
+);
+
+server.tool(
+  "file_upload",
+  "Prepare a file upload target in the current page.",
+  {
+    tabId: z.number().describe("Tab ID where the target upload element is located."),
+    ref: z.string().optional().describe("Element reference ID for the file input."),
+    coordinate: z.array(z.number()).optional().describe("Viewport coordinates [x, y] for a visible upload target."),
+    filename: z.string().optional().describe("Optional filename for the uploaded file."),
+  },
+  async (args) => callTool("file_upload", args)
+);
+
+server.tool(
+  "turn_answer_start",
+  "Signal that a browser-answer turn has started. This is a compatibility no-op for OpenClaude.",
+  {},
+  async () => textResult("Browser answer turn started.")
 );
 
 // --- Start MCP server ---

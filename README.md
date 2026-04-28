@@ -43,7 +43,7 @@ Claude Code <--stdio MCP--> mcp-server.js <--TCP--> native-host.js <--native mes
 ```
 
 Three components:
-1. **Extension** — Manifest V3 with CDP-based browser automation (all 18 tools)
+1. **Extension** — Manifest V3 with CDP-based browser automation and parity tool aliases
 2. **MCP Server** — Node.js process started by Claude Code, exposes tools via MCP
 3. **Native Messaging Host** — Bridge between the MCP server and the extension
 
@@ -113,12 +113,16 @@ Reddit loads. No domain restriction.
 
 ## Available Tools
 
-All 18 tools, identical to Claude in Chrome:
+Core tools and current parity aliases:
 
 | Tool | Description |
 |------|-------------|
 | `tabs_context_mcp` | Get tab group context |
 | `tabs_create_mcp` | Create new tab |
+| `tabs_context` | Alias for tab group context |
+| `tabs_create` | Alias for creating a new tab |
+| `tabs_close_mcp` | Close a tab in the current group |
+| `browser_batch` | Execute ordered browser tool actions |
 | `navigate` | Navigate to URL, back, forward |
 | `computer` | Mouse, keyboard, screenshots (13 actions) |
 | `read_page` | Accessibility tree with element refs |
@@ -130,11 +134,13 @@ All 18 tools, identical to Claude in Chrome:
 | `read_network_requests` | Network activity |
 | `resize_window` | Resize browser window |
 | `upload_image` | Upload screenshot to file input |
+| `file_upload` | Prepare a file upload target |
 | `gif_creator` | GIF recording (stub) |
 | `shortcuts_list` | List shortcuts (stub) |
 | `shortcuts_execute` | Run shortcut (stub) |
 | `switch_browser` | Switch browser (stub) |
 | `update_plan` | Present plan (auto-approved) |
+| `turn_answer_start` | Browser turn-start compatibility signal |
 
 ## Updating After Code Changes
 

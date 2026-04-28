@@ -12,6 +12,8 @@ Execute these steps in order:
 1. Call `tabs_context_mcp` with `createIfEmpty: true` to get current tabs.
 2. Call `tabs_create_mcp` to create a new tab. Record its tab ID as TAB_1.
 3. Call `tabs_create_mcp` again to create a second tab. Record its tab ID as TAB_2.
+3a. Call `tabs_context` to verify the compatibility alias returns the same tab group.
+3b. Call `tabs_create` to verify the compatibility alias can create a third tab. Record its tab ID as TAB_3.
 
 ## Navigation + Window
 4. Call `navigate` to go to `https://www.reddit.com` in TAB_1. (This domain is blocked in the official Claude in Chrome extension — if this works, the unblocked extension is functioning.)
@@ -58,36 +60,46 @@ Execute these steps in order:
 29. Call `shortcuts_list` on TAB_1.
 30. Call `shortcuts_execute` on TAB_1 with command `"test"`.
 31. Call `switch_browser`.
+31a. Call `turn_answer_start`.
 
 ## Plan + Upload
 32. Call `update_plan` with domains `["reddit.com", "news.ycombinator.com"]` and approach `["Testing browser automation", "Validating all tools", "Checking parity with Claude in Chrome"]`.
 33. Call `upload_image` on TAB_1 with the imageId from your first screenshot (step 6), using ref from step 9.
+34. Call `file_upload` on TAB_1 using ref from step 9.
+35. Call `browser_batch` with two actions: `computer` wait for `1` second on TAB_1, then `javascript_tool` with text `"document.title"` on TAB_1.
+36. Call `tabs_close_mcp` on TAB_3 to close the alias-created tab.
 
 ## Validation
 
-Now produce a final report. List every one of the 18 tools below and whether you successfully called it during this test. Use this exact format:
+Now produce a final report. List every tool below and whether you successfully called it during this test. Use this exact format:
 
 ```
 INTEGRATION TEST RESULTS
 ========================
 1.  tabs_context_mcp        : [PASS/FAIL] — step(s) used
 2.  tabs_create_mcp          : [PASS/FAIL] — step(s) used
-3.  navigate                 : [PASS/FAIL] — step(s) used
-4.  computer                 : [PASS/FAIL] — step(s) used (list actions exercised)
-5.  find                     : [PASS/FAIL] — step(s) used
-6.  form_input               : [PASS/FAIL] — step(s) used
-7.  get_page_text            : [PASS/FAIL] — step(s) used
-8.  gif_creator              : [PASS/FAIL] — step(s) used
-9.  javascript_tool          : [PASS/FAIL] — step(s) used
-10. read_console_messages    : [PASS/FAIL] — step(s) used
-11. read_network_requests    : [PASS/FAIL] — step(s) used
-12. read_page                : [PASS/FAIL] — step(s) used
-13. resize_window            : [PASS/FAIL] — step(s) used
-14. shortcuts_list           : [PASS/FAIL] — step(s) used
-15. shortcuts_execute        : [PASS/FAIL] — step(s) used
-16. switch_browser           : [PASS/FAIL] — step(s) used
-17. update_plan              : [PASS/FAIL] — step(s) used
-18. upload_image             : [PASS/FAIL] — step(s) used
+3.  tabs_context            : [PASS/FAIL] — step(s) used
+4.  tabs_create             : [PASS/FAIL] — step(s) used
+5.  tabs_close_mcp          : [PASS/FAIL] — step(s) used
+6.  browser_batch           : [PASS/FAIL] — step(s) used
+7.  navigate                : [PASS/FAIL] — step(s) used
+8.  computer                : [PASS/FAIL] — step(s) used (list actions exercised)
+9.  find                    : [PASS/FAIL] — step(s) used
+10. form_input              : [PASS/FAIL] — step(s) used
+11. get_page_text           : [PASS/FAIL] — step(s) used
+12. gif_creator             : [PASS/FAIL] — step(s) used
+13. javascript_tool         : [PASS/FAIL] — step(s) used
+14. read_console_messages   : [PASS/FAIL] — step(s) used
+15. read_network_requests   : [PASS/FAIL] — step(s) used
+16. read_page               : [PASS/FAIL] — step(s) used
+17. resize_window           : [PASS/FAIL] — step(s) used
+18. shortcuts_list          : [PASS/FAIL] — step(s) used
+19. shortcuts_execute       : [PASS/FAIL] — step(s) used
+20. switch_browser          : [PASS/FAIL] — step(s) used
+21. update_plan             : [PASS/FAIL] — step(s) used
+22. upload_image            : [PASS/FAIL] — step(s) used
+23. file_upload             : [PASS/FAIL] — step(s) used
+24. turn_answer_start       : [PASS/FAIL] — step(s) used
 
 Computer actions exercised:
 - screenshot: [PASS/FAIL]
@@ -104,7 +116,7 @@ Computer actions exercised:
 - left_click_drag: [PASS/FAIL]
 - zoom: [PASS/FAIL]
 
-OVERALL: [PASS if all 18 tools called / FAIL if any missed]
+OVERALL: [PASS if all listed tools called / FAIL if any missed]
 ```
 
 Mark a tool as PASS only if you actually called it and received a response (even if the response was "not implemented" for stub tools). Mark it as FAIL if you skipped it or encountered an error that prevented the call.
