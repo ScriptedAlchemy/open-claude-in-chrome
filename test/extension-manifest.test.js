@@ -66,6 +66,21 @@ describe("extension product surface", () => {
     }
   })
 
+  test("keeps managed policy OpenClaude-owned", () => {
+    const managedSchema = JSON.parse(
+      readFileSync(join(extensionRoot, manifest.storage.managed_schema), "utf8"),
+    )
+    expect(Object.keys(managedSchema.properties)).toEqual(["blockedUrlPatterns"])
+  })
+
+  test("uses OpenClaude native host as the primary runtime identity", () => {
+    const background = readFileSync(join(extensionRoot, "background.js"), "utf8")
+    expect(background).toContain('"com.openclaude.chrome"')
+    expect(background.indexOf('"com.openclaude.chrome"')).toBeLessThan(
+      background.indexOf('"com.anthropic.open_claude_in_chrome"'),
+    )
+  })
+
   test("runs accessibility tree in all frames at document_start", () => {
     const contentScript = manifest.content_scripts.find(script =>
       script.js.includes("content.js"),

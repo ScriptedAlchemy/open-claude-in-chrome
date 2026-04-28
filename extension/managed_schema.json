@@ -8,11 +8,6 @@
       "items": {
         "type": "string"
       }
-    },
-    "forceLoginOrgUUID": {
-      "title": "Force Login Organization UUID",
-      "description": "Optional Claude.ai organization UUID compatibility setting for managed deployments.",
-      "type": "string"
     }
   }
 }

@@ -36,7 +36,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 HOST_DIR="$SCRIPT_DIR/host"
 EXTENSION_DIR="$SCRIPT_DIR/extension"
 NATIVE_HOST_PATH="$HOST_DIR/native-host-wrapper.sh"
-HOST_NAME="com.anthropic.open_claude_in_chrome"
+HOST_NAME="com.openclaude.chrome"
 
 # Verify node is available
 if ! command -v node &> /dev/null; then

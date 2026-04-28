@@ -191,9 +191,9 @@ pkill -f "node.*mcp-server"
 2. Check that `bun run chrome:install:host` was run after loading the unpacked extension from this checkout
 3. Restart the browser completely (all windows)
 4. Verify the native messaging host manifest exists:
-   - **Chrome (macOS)**: `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.anthropic.open_claude_in_chrome.json`
-   - **Brave (macOS)**: `~/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.anthropic.open_claude_in_chrome.json`
-   - **Edge (macOS)**: `~/Library/Application Support/Microsoft Edge/NativeMessagingHosts/com.anthropic.open_claude_in_chrome.json`
+   - **Chrome (macOS)**: `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.openclaude.chrome.json`
+   - **Brave (macOS)**: `~/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.openclaude.chrome.json`
+   - **Edge (macOS)**: `~/Library/Application Support/Microsoft Edge/NativeMessagingHosts/com.openclaude.chrome.json`
 5. Confirm the manifest's `allowed_origins` includes the ID of the loaded unpacked extension
 
 ### MCP server not found

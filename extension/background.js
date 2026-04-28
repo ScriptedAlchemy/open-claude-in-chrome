@@ -7,10 +7,14 @@ self.addEventListener("unhandledrejection", (event) => {
   event.preventDefault();
 });
 
-const NATIVE_HOST_NAME = "com.anthropic.open_claude_in_chrome";
+const NATIVE_HOST_NAMES = [
+  "com.openclaude.chrome",
+  "com.anthropic.open_claude_in_chrome",
+];
 
 // --- State ---
 let nativePort = null;
+let connectedNativeHostName = null;
 let tabGroupId = null;
 let tabGroupTabs = new Set();
 const attachedTabs = new Map(); // tabId -> { enabledDomains: Set }
@@ -30,10 +34,17 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // --- Native messaging ---
 function connectNativeHost() {
   if (nativePort) return;
-  try {
-    nativePort = chrome.runtime.connectNative(NATIVE_HOST_NAME);
+  const [hostName, ...remainingHostNames] = NATIVE_HOST_NAMES;
+  connectNativeHostByName(hostName, remainingHostNames);
+}
 
-    nativePort.onMessage.addListener((msg) => {
+function connectNativeHostByName(hostName, fallbackHostNames = []) {
+  try {
+    const port = chrome.runtime.connectNative(hostName);
+    nativePort = port;
+    connectedNativeHostName = hostName;
+
+    port.onMessage.addListener((msg) => {
       if (msg.type === "tool_request" && msg.id) {
         handleToolRequest(msg.id, msg.tool, msg.args || {});
       } else if (msg.type === "status_response") {
@@ -41,14 +52,24 @@ function connectNativeHost() {
       }
     });
 
-    nativePort.onDisconnect.addListener(() => {
-      const err = chrome.runtime.lastError;
-      nativePort = null;
-      // Retry in 2 seconds
+    port.onDisconnect.addListener(() => {
+      if (nativePort === port) nativePort = null;
+      if (connectedNativeHostName === hostName) connectedNativeHostName = null;
+      if (fallbackHostNames.length > 0) {
+        const [nextHostName, ...rest] = fallbackHostNames;
+        connectNativeHostByName(nextHostName, rest);
+        return;
+      }
       setTimeout(connectNativeHost, 2000);
     });
   } catch (e) {
     nativePort = null;
+    connectedNativeHostName = null;
+    if (fallbackHostNames.length > 0) {
+      const [nextHostName, ...rest] = fallbackHostNames;
+      connectNativeHostByName(nextHostName, rest);
+      return;
+    }
     setTimeout(connectNativeHost, 2000);
   }
 }
@@ -86,7 +107,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "get_status") {
     sendResponse({
       connected: Boolean(nativePort),
-      hostName: NATIVE_HOST_NAME,
+      hostName: connectedNativeHostName || NATIVE_HOST_NAMES[0],
     });
     return true;
   }
