@@ -19,3 +19,4 @@ export {
   getSocketName,
   getUsername,
 } from "../shared/socket-paths.js"
+export { CHROME_BROWSER_TOOLS, CHROME_TOOL_NAMES } from "../tools/manifest.js"

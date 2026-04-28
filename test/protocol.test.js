@@ -43,23 +43,30 @@ describe("native messaging protocol", () => {
     const payload = Buffer.from("{", "utf8")
     const header = Buffer.alloc(4)
     header.writeUInt32LE(payload.length, 0)
-    const { errors, messages, remainder } = decodeNativeMessages(
+    const { error, messages, remainder } = decodeNativeMessages(
       Buffer.concat([header, payload]),
     )
 
     expect(messages).toEqual([])
-    expect(errors.length).toBe(1)
+    expect(error).toBeInstanceOf(Error)
+    expect(error.message).toBe("Malformed native message")
     expect(remainder.length).toBe(0)
   })
 
   test("rejects oversized native frames", () => {
     const header = Buffer.alloc(4)
     header.writeUInt32LE(MAX_NATIVE_MESSAGE_SIZE + 1, 0)
-    const { errors, messages, remainder } = decodeNativeMessages(header)
+    const { error, messages, remainder } = decodeNativeMessages(header)
 
     expect(messages).toEqual([])
-    expect(errors[0].message).toContain("exceeds maximum size")
+    expect(error.message).toContain("exceeds maximum size")
     expect(remainder.length).toBe(0)
+  })
+
+  test("rejects oversized encoded native messages", () => {
+    expect(() =>
+      encodeNativeMessage({ text: "x".repeat(MAX_NATIVE_MESSAGE_SIZE + 1) }),
+    ).toThrow("exceeds maximum size")
   })
 })
 

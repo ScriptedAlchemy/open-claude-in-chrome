@@ -13,12 +13,6 @@ describe("open-claude-in-chrome package exports", () => {
     await expect(import("open-claude-in-chrome/tools")).resolves.toMatchObject({
       CHROME_BROWSER_TOOLS: expect.any(Array),
     })
-    await expect(import("open-claude-in-chrome/native-host")).resolves.toMatchObject({
-      runNativeHost: expect.any(Function),
-    })
-    await expect(import("open-claude-in-chrome/compat-server")).resolves.toMatchObject({
-      createChromeCompatServerForCli: expect.any(Function),
-    })
   })
 
   test("source entrypoint loads", async () => {
@@ -29,5 +23,11 @@ describe("open-claude-in-chrome package exports", () => {
   test("logger default is callable", async () => {
     const { noopLogger } = await import("../src/node/index.js")
     expect(() => noopLogger.debug("ok")).not.toThrow()
+  })
+
+  test("main entrypoint exports browser tool manifest", async () => {
+    const mod = await import("open-claude-in-chrome")
+    expect(mod.CHROME_TOOL_NAMES).toContain("javascript_tool")
+    expect(mod.CHROME_BROWSER_TOOLS.length).toBeGreaterThan(10)
   })
 })

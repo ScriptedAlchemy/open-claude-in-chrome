@@ -1,11 +1,11 @@
 export const MAX_NATIVE_MESSAGE_SIZE = 1024 * 1024
+const OVERSIZED_NATIVE_MESSAGE_ERROR = `Native message exceeds maximum size of ${MAX_NATIVE_MESSAGE_SIZE} bytes`
+const MALFORMED_NATIVE_MESSAGE_ERROR = "Malformed native message"
 
 export function encodeNativeMessage(message) {
   const payload = Buffer.from(JSON.stringify(message), "utf8")
   if (payload.length > MAX_NATIVE_MESSAGE_SIZE) {
-    throw new Error(
-      `Native message exceeds maximum size of ${MAX_NATIVE_MESSAGE_SIZE} bytes`,
-    )
+    throw new Error(OVERSIZED_NATIVE_MESSAGE_ERROR)
   }
   const header = Buffer.alloc(4)
   header.writeUInt32LE(payload.length, 0)
@@ -14,18 +14,16 @@ export function encodeNativeMessage(message) {
 
 export function decodeNativeMessages(buffer) {
   const messages = []
-  const errors = []
   let offset = 0
 
   while (offset + 4 <= buffer.length) {
     const length = buffer.readUInt32LE(offset)
     if (length > MAX_NATIVE_MESSAGE_SIZE) {
-      errors.push(
-        new Error(
-          `Native message exceeds maximum size of ${MAX_NATIVE_MESSAGE_SIZE} bytes`,
-        ),
-      )
-      return { messages, errors, remainder: Buffer.alloc(0) }
+      return {
+        messages,
+        error: new Error(OVERSIZED_NATIVE_MESSAGE_ERROR),
+        remainder: Buffer.alloc(0),
+      }
     }
     const end = offset + 4 + length
     if (end > buffer.length) break
@@ -34,16 +32,16 @@ export function decodeNativeMessages(buffer) {
     try {
       messages.push(JSON.parse(raw))
     } catch (error) {
-      errors.push(
-        error instanceof Error
-          ? error
-          : new Error(`Malformed native message: ${String(error)}`),
-      )
+      return {
+        messages,
+        error: new Error(MALFORMED_NATIVE_MESSAGE_ERROR),
+        remainder: Buffer.alloc(0),
+      }
     }
     offset = end
   }
 
-  return { messages, errors, remainder: buffer.subarray(offset) }
+  return { messages, error: undefined, remainder: buffer.subarray(offset) }
 }
 
 export function encodeJsonLine(message) {
