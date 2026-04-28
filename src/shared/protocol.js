@@ -1,5 +1,12 @@
+export const MAX_NATIVE_MESSAGE_SIZE = 1024 * 1024
+
 export function encodeNativeMessage(message) {
   const payload = Buffer.from(JSON.stringify(message), "utf8")
+  if (payload.length > MAX_NATIVE_MESSAGE_SIZE) {
+    throw new Error(
+      `Native message exceeds maximum size of ${MAX_NATIVE_MESSAGE_SIZE} bytes`,
+    )
+  }
   const header = Buffer.alloc(4)
   header.writeUInt32LE(payload.length, 0)
   return Buffer.concat([header, payload])
@@ -7,23 +14,36 @@ export function encodeNativeMessage(message) {
 
 export function decodeNativeMessages(buffer) {
   const messages = []
+  const errors = []
   let offset = 0
 
   while (offset + 4 <= buffer.length) {
     const length = buffer.readUInt32LE(offset)
+    if (length > MAX_NATIVE_MESSAGE_SIZE) {
+      errors.push(
+        new Error(
+          `Native message exceeds maximum size of ${MAX_NATIVE_MESSAGE_SIZE} bytes`,
+        ),
+      )
+      return { messages, errors, remainder: Buffer.alloc(0) }
+    }
     const end = offset + 4 + length
     if (end > buffer.length) break
 
     const raw = buffer.subarray(offset + 4, end).toString("utf8")
     try {
       messages.push(JSON.parse(raw))
-    } catch {
-      // Ignore malformed messages and keep parsing the stream.
+    } catch (error) {
+      errors.push(
+        error instanceof Error
+          ? error
+          : new Error(`Malformed native message: ${String(error)}`),
+      )
     }
     offset = end
   }
 
-  return { messages, remainder: buffer.subarray(offset) }
+  return { messages, errors, remainder: buffer.subarray(offset) }
 }
 
 export function encodeJsonLine(message) {

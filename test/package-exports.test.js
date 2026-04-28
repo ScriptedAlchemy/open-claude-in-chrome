@@ -6,6 +6,21 @@ describe("open-claude-in-chrome package exports", () => {
     expect(typeof mod.resolveLogger).toBe("function")
   })
 
+  test("declared package subpaths load", async () => {
+    await expect(import("open-claude-in-chrome/protocol")).resolves.toMatchObject({
+      encodeNativeMessage: expect.any(Function),
+    })
+    await expect(import("open-claude-in-chrome/tools")).resolves.toMatchObject({
+      CHROME_BROWSER_TOOLS: expect.any(Array),
+    })
+    await expect(import("open-claude-in-chrome/native-host")).resolves.toMatchObject({
+      runNativeHost: expect.any(Function),
+    })
+    await expect(import("open-claude-in-chrome/compat-server")).resolves.toMatchObject({
+      createChromeCompatServerForCli: expect.any(Function),
+    })
+  })
+
   test("source entrypoint loads", async () => {
     const mod = await import("../src/node/index.js")
     expect(typeof mod.resolveLogger).toBe("function")

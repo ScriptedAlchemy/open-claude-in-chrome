@@ -4,6 +4,7 @@ import {
   decodeNativeMessages,
   encodeJsonLine,
   encodeNativeMessage,
+  MAX_NATIVE_MESSAGE_SIZE,
 } from "../src/shared/protocol.js"
 
 describe("native messaging protocol", () => {
@@ -36,6 +37,29 @@ describe("native messaging protocol", () => {
 
     expect(messages).toEqual([])
     expect(remainder).toEqual(partial)
+  })
+
+  test("reports malformed native JSON deterministically", () => {
+    const payload = Buffer.from("{", "utf8")
+    const header = Buffer.alloc(4)
+    header.writeUInt32LE(payload.length, 0)
+    const { errors, messages, remainder } = decodeNativeMessages(
+      Buffer.concat([header, payload]),
+    )
+
+    expect(messages).toEqual([])
+    expect(errors.length).toBe(1)
+    expect(remainder.length).toBe(0)
+  })
+
+  test("rejects oversized native frames", () => {
+    const header = Buffer.alloc(4)
+    header.writeUInt32LE(MAX_NATIVE_MESSAGE_SIZE + 1, 0)
+    const { errors, messages, remainder } = decodeNativeMessages(header)
+
+    expect(messages).toEqual([])
+    expect(errors[0].message).toContain("exceeds maximum size")
+    expect(remainder.length).toBe(0)
   })
 })
 
