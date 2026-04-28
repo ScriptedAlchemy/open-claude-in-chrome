@@ -751,6 +751,13 @@ server.tool(
   async () => textResult("Browser answer turn started.")
 );
 
+server.tool(
+  "switch_browser",
+  "Switch which Chrome browser is used for browser automation.",
+  {},
+  async (args) => callTool("switch_browser", args)
+);
+
 // --- Start MCP server ---
 
 const transport = new StdioServerTransport();

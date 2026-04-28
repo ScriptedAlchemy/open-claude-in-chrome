@@ -316,6 +316,10 @@ export const CHROME_BROWSER_TOOLS = [
     },
   },
   {
+    name: "switch_browser",
+    description: "Switch which Chrome browser is used for browser automation.",
+  },
+  {
     name: "update_plan",
     description: "Present or update a browser-execution plan.",
     inputSchema: {
