@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 
 describe("open-claude-in-chrome package exports", () => {
   test("workspace package entrypoint resolves provided and default loggers", async () => {
