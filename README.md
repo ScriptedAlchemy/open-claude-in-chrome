@@ -95,6 +95,39 @@ Enable Chrome integration from OpenClaude Settings or with `/chrome`. OpenClaude
 loads the Chrome MCP runtime as a built-in package; do not add a project or user
 `.mcp.json` entry for this extension.
 
+### Step 5b: Enable in OpenCode
+
+OpenCode uses its own global user config. After loading the extension and
+registering the native messaging host, install the local MCP server into the
+user-level OpenCode config:
+
+```bash
+pnpm run chrome:install:opencode
+```
+
+This adds an enabled `open-claude-in-chrome` local MCP server to the global
+user-level OpenCode config at
+`~/.config/opencode/opencode.json` with:
+
+```json
+{
+  "mcp": {
+    "open-claude-in-chrome": {
+      "type": "local",
+      "command": [
+        "node",
+        "/absolute/path/to/packages/open-claude-in-chrome/host/mcp-server.js"
+      ],
+      "enabled": true,
+      "timeout": 60000
+    }
+  }
+}
+```
+
+For tests or nonstandard setups only, set `OPENCODE_CONFIG` before running the
+installer.
+
 ## Verification
 
 Start a new OpenClaude session and test:

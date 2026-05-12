@@ -14,6 +14,7 @@
     "lint": "node --check ./host/mcp-server.js && node --check ./host/native-host.js && node --check ./extension/background.js && node --check ./extension/content.js && node --check ./extension/sidepanel.js && node --check ./extension/options.js && node --check ./extension/offscreen.js && node --check ./extension/gif_viewer.js && node --check ./extension/claude-ai-handoff.js && node --check ./extension/agent-visual-indicator.js && node --check ./extension/managed-policy.js && node --check ./extension/theme.js && node --check ./src/node/index.js && node --check ./src/shared/protocol.js && node --check ./src/shared/browsers.js && node --check ./src/shared/socket-paths.js && node --check ./src/tools/manifest.js",
     "test": "vitest run ./test",
     "install:host": "bash ./install.sh",
+    "install:opencode": "node ./scripts/install-opencode-mcp.mjs",
     "sync:extension": "node ./scripts/sync-extension.mjs"
   },
   "dependencies": {
