@@ -10,20 +10,20 @@ set -e
 # Open Claude in Chrome installations from local Chromium profile data.
 
 print_usage() {
-  echo "Usage (repo root): pnpm run chrome:install:host -- [extension-id] [extension-id-2] ..."
-  echo "Manual alternative: cd packages/open-claude-in-chrome && ./install.sh [extension-id] [extension-id-2] ..."
+  echo "Usage: pnpm run install:host -- [extension-id] [extension-id-2] ..."
+  echo "Manual alternative: ./install.sh [extension-id] [extension-id-2] ..."
   echo ""
   echo "If no IDs are passed, the script auto-detects unpacked installs"
   echo "from Chrome-family browser profiles."
   echo ""
   echo "Steps:"
-  echo "  1. From the repo root, run: pnpm install"
+  echo "  1. From this repo root, run: pnpm install"
   echo "  2. Open chrome://extensions (and/or brave://extensions)"
   echo "  3. Enable Developer Mode"
-  echo "  4. Click 'Load unpacked' and select the packages/open-claude-in-chrome/extension/ directory"
-  echo "  5. From the repo root, run: pnpm run chrome:install:host"
+  echo "  4. Click 'Load unpacked' and select this checkout's extension/ directory"
+  echo "  5. From this repo root, run: pnpm run install:host"
   echo "  6. If auto-detection misses your browser, rerun with explicit IDs"
-  echo "     pnpm run chrome:install:host -- <chrome-id> <brave-id>"
+  echo "     pnpm run install:host -- <chrome-id> <brave-id>"
 }
 
 if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
@@ -44,10 +44,10 @@ if ! command -v node &> /dev/null; then
   exit 1
 fi
 
-# Workspace install owns dependency setup. Fail loudly if the workspace has not
+# Package install owns dependency setup. Fail loudly if dependencies have not
 # been installed yet.
 if ! node -e "import('@modelcontextprotocol/sdk/server/mcp.js').then(() => process.exit(0)).catch(() => process.exit(1))" >/dev/null 2>&1; then
-  echo "Error: workspace dependencies are missing. Run 'pnpm install' from the repo root first."
+  echo "Error: package dependencies are missing. Run 'pnpm install' from this repo root first."
   exit 1
 fi
 
@@ -260,7 +260,7 @@ echo "Done! Next steps:"
 echo ""
 echo "  1. Restart your browser (close all windows and reopen)"
 echo "  2. Ensure OpenClaude has Chrome integration enabled from Settings or /chrome"
-echo "  3. Optional global OpenCode user setup: pnpm run chrome:install:opencode"
+echo "  3. Optional global OpenCode user setup: pnpm run install:opencode"
 echo "  4. Start or restart OpenClaude or OpenCode and test:"
 echo ""
 echo '     Ask Claude: "Navigate to reddit.com and take a screenshot"'

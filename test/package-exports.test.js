@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest"
 
 describe("open-claude-in-chrome package exports", () => {
-  test("workspace package entrypoint resolves provided and default loggers", async () => {
+  test("package entrypoint resolves provided and default loggers", async () => {
     const mod = await import("open-claude-in-chrome")
     const logger = { debug() {}, info() {}, warn() {}, error() {} }
 

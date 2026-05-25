@@ -1,6 +1,7 @@
 {
   "name": "open-claude-in-chrome",
   "private": true,
+  "packageManager": "pnpm@10.28.0",
   "type": "module",
   "exports": {
     ".": "./src/node/index.js",

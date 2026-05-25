@@ -67,14 +67,14 @@ pnpm install
 
 1. Go to `chrome://extensions` (or `brave://extensions` / `edge://extensions`)
 2. Enable **Developer mode**
-3. Click **Load unpacked** and select the `packages/open-claude-in-chrome/extension/` directory
+3. Click **Load unpacked** and select this checkout's `extension/` directory
 
 ### Step 3: Register native messaging
 
 From the repo root:
 
 ```bash
-pnpm run chrome:install:host
+pnpm run install:host
 ```
 
 The install script auto-detects unpacked Open Claude in Chrome installs by
@@ -82,7 +82,7 @@ reading local Chromium profile metadata for the current `extension/` path.
 If auto-detection misses a browser, you can still pass explicit IDs:
 
 ```bash
-pnpm run chrome:install:host -- <chrome-id> <brave-id> <arc-id>
+pnpm run install:host -- <chrome-id> <brave-id> <arc-id>
 ```
 
 ### Step 4: Restart your browser
@@ -102,7 +102,7 @@ registering the native messaging host, install the local MCP server into the
 user-level OpenCode config:
 
 ```bash
-pnpm run chrome:install:opencode
+pnpm run install:opencode
 ```
 
 This adds an enabled `open-claude-in-chrome` local MCP server to the global
@@ -116,7 +116,7 @@ user-level OpenCode config at
       "type": "local",
       "command": [
         "node",
-        "/absolute/path/to/packages/open-claude-in-chrome/host/mcp-server.js"
+        "/absolute/path/to/open-claude-in-chrome/host/mcp-server.js"
       ],
       "enabled": true,
       "timeout": 60000
@@ -178,7 +178,7 @@ No build step. All files are plain JavaScript. After pulling or editing code:
 | `extension/background.js` or `extension/content.js` or `extension/manifest.json` | Reload the extension: `brave://extensions` > click the reload icon |
 | Chrome runtime bridge | Restart or reconnect OpenClaude |
 | `host/native-host.js` | Restart the browser (close all windows, reopen) |
-| `install.sh` or native host name changed | Re-run `pnpm run chrome:install:host`, restart browser |
+| `install.sh` or native host name changed | Re-run `pnpm run install:host`, restart browser |
 
 ### Quick reset (nuclear option)
 
@@ -189,7 +189,7 @@ If things are broken and you're not sure why:
 pkill -f "node.*mcp-server"
 
 # 2. Re-run install
-pnpm run chrome:install:host
+pnpm run install:host
 
 # 3. Restart browser (close all windows, reopen)
 
@@ -216,7 +216,7 @@ pkill -f "node.*mcp-server"
 ### Extension not connecting
 
 1. Verify the extension is loaded and enabled
-2. Check that `pnpm run chrome:install:host` was run after loading the unpacked extension from this checkout
+2. Check that `pnpm run install:host` was run after loading the unpacked extension from this checkout
 3. Restart the browser completely (all windows)
 4. Verify the native messaging host manifest exists:
    - **Chrome (macOS)**: `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.openclaude.chrome.json`
