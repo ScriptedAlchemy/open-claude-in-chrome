@@ -82,7 +82,7 @@ reading local Chromium profile metadata for the current `extension/` path.
 If auto-detection misses a browser, you can still pass explicit IDs:
 
 ```bash
-pnpm run install:host -- <chrome-id> <brave-id> <arc-id>
+pnpm run install:host <chrome-id> <brave-id> <arc-id>
 ```
 
 ### Step 4: Restart your browser

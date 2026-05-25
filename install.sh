@@ -10,7 +10,7 @@ set -e
 # Open Claude in Chrome installations from local Chromium profile data.
 
 print_usage() {
-  echo "Usage: pnpm run install:host -- [extension-id] [extension-id-2] ..."
+  echo "Usage: pnpm run install:host [extension-id] [extension-id-2] ..."
   echo "Manual alternative: ./install.sh [extension-id] [extension-id-2] ..."
   echo ""
   echo "If no IDs are passed, the script auto-detects unpacked installs"
