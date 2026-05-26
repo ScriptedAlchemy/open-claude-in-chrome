@@ -1,5 +1,7 @@
 export const MAX_NATIVE_MESSAGE_SIZE = 1024 * 1024
+export const MAX_JSON_LINE_SIZE = 8 * 1024 * 1024
 const OVERSIZED_NATIVE_MESSAGE_ERROR = `Native message exceeds maximum size of ${MAX_NATIVE_MESSAGE_SIZE} bytes`
+const OVERSIZED_JSON_LINE_ERROR = `JSON line exceeds maximum size of ${MAX_JSON_LINE_SIZE} bytes`
 const MALFORMED_NATIVE_MESSAGE_ERROR = "Malformed native message"
 
 export function encodeNativeMessage(message) {
@@ -45,7 +47,12 @@ export function decodeNativeMessages(buffer) {
 }
 
 export function encodeJsonLine(message) {
-  return Buffer.from(`${JSON.stringify(message)}\n`, "utf8")
+  const payload = Buffer.from(`${JSON.stringify(message)}\n`, "utf8")
+  // Match decodeJsonLines(): the cap applies to the JSON payload before the newline.
+  if (payload.length - 1 > MAX_JSON_LINE_SIZE) {
+    throw new Error(OVERSIZED_JSON_LINE_ERROR)
+  }
+  return payload
 }
 
 export function decodeJsonLines(buffer) {
@@ -54,7 +61,24 @@ export function decodeJsonLines(buffer) {
 
   while (true) {
     const newline = buffer.indexOf(10, cursor)
-    if (newline === -1) break
+    if (newline === -1) {
+      if (buffer.length - cursor > MAX_JSON_LINE_SIZE) {
+        return {
+          messages,
+          error: new Error(OVERSIZED_JSON_LINE_ERROR),
+          remainder: Buffer.alloc(0),
+        }
+      }
+      break
+    }
+
+    if (newline - cursor > MAX_JSON_LINE_SIZE) {
+      return {
+        messages,
+        error: new Error(OVERSIZED_JSON_LINE_ERROR),
+        remainder: Buffer.alloc(0),
+      }
+    }
 
     const line = buffer.subarray(cursor, newline).toString("utf8").trim()
     if (line) {
@@ -67,5 +91,5 @@ export function decodeJsonLines(buffer) {
     cursor = newline + 1
   }
 
-  return { messages, remainder: buffer.subarray(cursor) }
+  return { messages, error: undefined, remainder: buffer.subarray(cursor) }
 }

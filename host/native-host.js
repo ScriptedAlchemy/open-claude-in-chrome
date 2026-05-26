@@ -9,6 +9,12 @@ import net from "node:net";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import {
+  decodeJsonLines,
+  decodeNativeMessages,
+  encodeJsonLine,
+  encodeNativeMessage,
+} from "../src/shared/protocol.js";
 
 const DEFAULT_PORT = 18765;
 
@@ -25,33 +31,6 @@ function getPort() {
   } catch {
     return DEFAULT_PORT;
   }
-}
-
-// --- Native messaging protocol (Chrome <-> this process) ---
-
-function readNativeMessage(buffer) {
-  const messages = [];
-  let offset = 0;
-  while (offset + 4 <= buffer.length) {
-    const len = buffer.readUInt32LE(offset);
-    if (offset + 4 + len > buffer.length) break;
-    const json = buffer.subarray(offset + 4, offset + 4 + len).toString("utf-8");
-    try {
-      messages.push(JSON.parse(json));
-    } catch (e) {
-      // skip malformed
-    }
-    offset += 4 + len;
-  }
-  return { messages, remainder: buffer.subarray(offset) };
-}
-
-function writeNativeMessage(obj) {
-  const json = JSON.stringify(obj);
-  const buf = Buffer.from(json, "utf-8");
-  const header = Buffer.alloc(4);
-  header.writeUInt32LE(buf.length, 0);
-  process.stdout.write(Buffer.concat([header, buf]));
 }
 
 // --- TCP connection to MCP server ---
@@ -79,17 +58,17 @@ function connectTcp() {
   tcpSocket.on("data", (chunk) => {
     // newline-delimited JSON from MCP server
     tcpBuffer = Buffer.concat([tcpBuffer, chunk]);
-    let newlineIdx;
-    while ((newlineIdx = tcpBuffer.indexOf(10)) !== -1) {
-      const line = tcpBuffer.subarray(0, newlineIdx).toString("utf-8").trim();
-      tcpBuffer = tcpBuffer.subarray(newlineIdx + 1);
-      if (!line) continue;
+    const { messages, error, remainder } = decodeJsonLines(tcpBuffer);
+    tcpBuffer = remainder;
+    if (error) {
+      tcpSocket.destroy(error);
+      return;
+    }
+    for (const msg of messages) {
       try {
-        const msg = JSON.parse(line);
-        // Forward to extension via native messaging
-        writeNativeMessage(msg);
+        process.stdout.write(encodeNativeMessage(msg));
       } catch {
-        // skip malformed
+        // Skip oversized messages from the peer.
       }
     }
   });
@@ -120,13 +99,20 @@ let stdinBuffer = Buffer.alloc(0);
 
 process.stdin.on("data", (chunk) => {
   stdinBuffer = Buffer.concat([stdinBuffer, chunk]);
-  const { messages, remainder } = readNativeMessage(stdinBuffer);
+  const { messages, error, remainder } = decodeNativeMessages(stdinBuffer);
   stdinBuffer = remainder;
+  if (error) {
+    process.exit(1);
+  }
 
   for (const msg of messages) {
     // Forward to MCP server via TCP
     if (tcpSocket && !tcpSocket.destroyed) {
-      tcpSocket.write(JSON.stringify(msg) + "\n");
+      try {
+        tcpSocket.write(encodeJsonLine(msg));
+      } catch {
+        tcpSocket.destroy();
+      }
     }
   }
 });

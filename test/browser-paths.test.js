@@ -5,6 +5,7 @@ import {
   CHROMIUM_BROWSERS,
   getBrowserDataPaths,
   getNativeMessagingHostDirs,
+  getWindowsRegistryKeys,
 } from "../src/shared/browsers.js"
 import { getSecureSocketPath } from "../src/shared/socket-paths.js"
 
@@ -51,6 +52,24 @@ describe("browser matrices", () => {
         },
       ]),
     )
+  })
+
+  test("returns Linux native host and data paths", () => {
+    expect(getNativeMessagingHostDirs({ platform: "linux", home: "/home/example" })).toContainEqual({
+      browser: "edge",
+      path: "/home/example/.config/microsoft-edge/NativeMessagingHosts",
+    })
+    expect(getBrowserDataPaths({ platform: "linux", home: "/home/example" })).not.toContainEqual(
+      expect.objectContaining({ browser: "arc" }),
+    )
+  })
+
+  test("returns Windows data paths and registry keys", () => {
+    expect(getBrowserDataPaths({ platform: "win32", home: "C:\\Users\\example" })).toContainEqual({
+      browser: "chrome",
+      path: "C:\\Users\\example/AppData/Local/Google/Chrome/User Data",
+    })
+    expect(getWindowsRegistryKeys().map(({ browser }) => browser)).toEqual(BROWSER_DETECTION_ORDER)
   })
 
   test("uses a per-user secure socket path", () => {

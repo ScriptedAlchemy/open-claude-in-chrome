@@ -42,6 +42,6 @@ describe("open-claude-in-chrome package exports", () => {
     expect(mod.CHROME_TOOL_NAMES).toContain("tabs_close_mcp")
     expect(mod.CHROME_TOOL_NAMES).toContain("file_upload")
     expect(mod.CHROME_TOOL_NAMES).toContain("turn_answer_start")
-    expect(mod.CHROME_BROWSER_TOOLS.length).toBeGreaterThan(10)
+    expect(mod.CHROME_BROWSER_TOOLS.length).toBe(24)
   })
 })

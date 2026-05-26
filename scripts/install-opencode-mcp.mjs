@@ -27,7 +27,14 @@ let config = {
 };
 
 if (fs.existsSync(configPath)) {
-  config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  try {
+    config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  } catch (error) {
+    throw new Error(
+      `Could not parse existing OpenCode config at ${configPath}: ${error.message}. ` +
+        "Fix or move the file, then rerun this installer.",
+    );
+  }
 }
 
 config.$schema ??= "https://opencode.ai/config.json";

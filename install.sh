@@ -28,7 +28,7 @@ print_usage() {
 
 if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
   print_usage
-  exit 1
+  exit 0
 fi
 
 EXTENSION_IDS=("$@")
@@ -169,7 +169,7 @@ fi
 # Chrome launches this via native messaging — it needs to find node and the script.
 cat > "$NATIVE_HOST_PATH" << WRAPPER
 #!/bin/sh
-exec "$(which node)" "$HOST_DIR/native-host.js"
+exec "$(command -v node)" "$HOST_DIR/native-host.js"
 WRAPPER
 chmod +x "$NATIVE_HOST_PATH"
 

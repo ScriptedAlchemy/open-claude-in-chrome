@@ -18,23 +18,31 @@ describe("extension product surface", () => {
       type: "module",
     })
     expect(manifest.storage.managed_schema).toBe("managed_schema.json")
-    expect(manifest.permissions).toEqual(
-      expect.arrayContaining([
-        "sidePanel",
-        "offscreen",
-        "notifications",
-        "webNavigation",
-        "nativeMessaging",
-        "unlimitedStorage",
-        "downloads",
-      ]),
-    )
+    expect(manifest.permissions).toEqual([
+      "sidePanel",
+      "tabs",
+      "debugger",
+      "activeTab",
+      "scripting",
+      "nativeMessaging",
+      "tabGroups",
+      "windows",
+      "storage",
+      "alarms",
+      "notifications",
+      "webNavigation",
+      "offscreen",
+      "unlimitedStorage",
+      "downloads",
+    ])
+    expect(manifest.host_permissions).toEqual(["<all_urls>"])
     expect(manifest.permissions).not.toContain("identity")
     expect(manifest.permissions).not.toContain("declarativeNetRequestWithHostAccess")
     expect(manifest.commands["toggle-side-panel"]).toBeTruthy()
     expect(manifest.content_security_policy.extension_pages).toContain(
       "script-src 'self'",
     )
+    expect(manifest.content_security_policy.extension_pages).not.toContain("unsafe-inline")
     expect(manifest.externally_connectable.matches).toContain("https://claude.ai/*")
   })
 
