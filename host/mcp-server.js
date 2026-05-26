@@ -709,6 +709,30 @@ server.tool(
   async (args) => callTool("read_page", args)
 );
 
+// 12b. browser_dialogs
+server.tool(
+  "browser_dialogs",
+  "List native JavaScript dialogs (alert, confirm, prompt, beforeunload) currently blocking a tab. Use this when a page appears stuck after an action. If you don't have a valid tab ID, use tabs_context_mcp first.",
+  {
+    tabId: z.number().describe("Tab ID to inspect. Must be a tab in the current group."),
+    clearClosed: z.boolean().optional().describe("If true, discard already-closed dialog history and return only active dialogs."),
+  },
+  async (args) => callTool("browser_dialogs", args)
+);
+
+// 12c. browser_dialog
+server.tool(
+  "browser_dialog",
+  "Accept or dismiss a native JavaScript dialog (alert, confirm, prompt, beforeunload) currently blocking a tab. Call browser_dialogs first if you need the dialog id or message.",
+  {
+    tabId: z.number().describe("Tab ID with the pending dialog. Must be a tab in the current group."),
+    action: z.enum(["accept", "dismiss"]).describe("Accept clicks OK / returns prompt text. Dismiss clicks Cancel / returns null from prompt()."),
+    promptText: z.string().optional().describe("Text to submit for prompt() dialogs. Ignored for alert/confirm/beforeunload."),
+    dialogId: z.string().optional().describe("Specific dialog id from browser_dialogs when multiple dialogs are queued."),
+  },
+  async (args) => callTool("browser_dialog", args)
+);
+
 // 13. resize_window
 server.tool(
   "resize_window",
@@ -789,9 +813,9 @@ server.tool(
 
 server.tool(
   "switch_browser",
-  "Switch which Chrome browser is used for browser automation.",
+  "Switch which Chrome browser is used for browser automation. Compatibility no-op for OpenClaude because this MCP server is already bound to the browser extension instance.",
   {},
-  async (args) => callTool("switch_browser", args)
+  async () => textResult("Browser switching is not needed; OpenClaude is already connected to the active browser extension.")
 );
 
 // --- Start MCP server ---

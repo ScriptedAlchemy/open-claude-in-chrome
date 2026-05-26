@@ -17,6 +17,7 @@ let tabGroupTabs = new Set();
 const attachedTabs = new Map(); // tabId -> { enabledDomains: Set }
 const consoleMessages = new Map(); // tabId -> [{level, text, timestamp, url}]
 const networkRequests = new Map(); // tabId -> [{url, method, status, type, timestamp}]
+const pendingDialogs = new Map(); // tabId -> [{id, type, message, url, defaultPrompt, active, openedAt, closedAt}]
 const screenshotStore = new Map(); // imageId -> base64
 let gifRecording = null;
 const pendingPairingRequests = new Set();
@@ -416,6 +417,10 @@ async function ensureAttached(tabId) {
     deviceScaleFactor: 1,
     mobile: false,
   });
+  try {
+    await chrome.debugger.sendCommand({ tabId }, "Page.enable", {});
+    attachedTabs.get(tabId)?.enabledDomains.add("Page");
+  } catch {}
 }
 
 async function ensureDomain(tabId, domain) {
@@ -440,6 +445,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   }
   consoleMessages.delete(tabId);
   networkRequests.delete(tabId);
+  pendingDialogs.delete(tabId);
 });
 
 // Handle user dismissing debugger bar
@@ -447,9 +453,49 @@ chrome.debugger.onDetach.addListener((source, reason) => {
   attachedTabs.delete(source.tabId);
 });
 
+function getDialogList(tabId, { includeClosed = false } = {}) {
+  const dialogs = pendingDialogs.get(tabId) || [];
+  return dialogs.filter((dialog) => includeClosed || dialog.active);
+}
+
+function rememberDialog(tabId, params) {
+  const dialogs = pendingDialogs.get(tabId) || [];
+  const id = `dialog_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  dialogs.push({
+    id,
+    type: params.type || "unknown",
+    message: params.message || "",
+    url: params.url || "",
+    defaultPrompt: params.defaultPrompt || "",
+    hasBrowserHandler: Boolean(params.hasBrowserHandler),
+    active: true,
+    openedAt: Date.now(),
+  });
+  if (dialogs.length > 20) dialogs.splice(0, dialogs.length - 20);
+  pendingDialogs.set(tabId, dialogs);
+}
+
+function closeRememberedDialog(tabId, params = {}) {
+  const dialogs = pendingDialogs.get(tabId) || [];
+  const dialog = dialogs.find((entry) => entry.active);
+  if (!dialog) return;
+  dialog.active = false;
+  dialog.closedAt = Date.now();
+  dialog.result = Boolean(params.result);
+  dialog.userInput = params.userInput || "";
+}
+
 // --- CDP event listeners for console and network ---
 chrome.debugger.onEvent.addListener((source, method, params) => {
   const tabId = source.tabId;
+
+  if (method === "Page.javascriptDialogOpening") {
+    rememberDialog(tabId, params || {});
+  }
+
+  if (method === "Page.javascriptDialogClosed") {
+    closeRememberedDialog(tabId, params || {});
+  }
 
   if (method === "Console.messageAdded" && params.message) {
     const msgs = consoleMessages.get(tabId) || [];
@@ -1246,6 +1292,75 @@ const toolHandlers = {
       .join("\n");
 
     return { content: [{ type: "text", text: `Network requests (${reqs.length}):\n${text}` }] };
+  },
+
+  async browser_dialogs(args) {
+    const tabId = Number(args.tabId);
+    if (!(await isInGroup(tabId))) return { content: [{ type: "text", text: `Tab ${tabId} is not in the MCP group.` }] };
+
+    await ensureAttached(tabId);
+    await ensureDomain(tabId, "Page");
+
+    if (args.clearClosed) {
+      pendingDialogs.set(tabId, getDialogList(tabId));
+    }
+
+    const dialogs = getDialogList(tabId, { includeClosed: !args.clearClosed });
+    if (dialogs.length === 0) {
+      return { content: [{ type: "text", text: "No pending JavaScript dialogs." }] };
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({ dialogs }, null, 2),
+        },
+      ],
+    };
+  },
+
+  async browser_dialog(args) {
+    const tabId = Number(args.tabId);
+    const action = String(args.action || "").toLowerCase();
+    const promptText = typeof args.promptText === "string" ? args.promptText : "";
+    const dialogId = typeof args.dialogId === "string" ? args.dialogId : "";
+    if (!(await isInGroup(tabId))) return { content: [{ type: "text", text: `Tab ${tabId} is not in the MCP group.` }] };
+    if (!["accept", "dismiss"].includes(action)) {
+      return { content: [{ type: "text", text: "action must be 'accept' or 'dismiss'." }] };
+    }
+
+    await ensureAttached(tabId);
+    await ensureDomain(tabId, "Page");
+
+    const activeDialogs = getDialogList(tabId);
+    const dialog = dialogId
+      ? activeDialogs.find((entry) => entry.id === dialogId)
+      : activeDialogs[0];
+    if (!dialog) {
+      return { content: [{ type: "text", text: "No matching pending JavaScript dialog." }] };
+    }
+
+    try {
+      await cdp(tabId, "Page.handleJavaScriptDialog", {
+        accept: action === "accept",
+        promptText,
+      });
+      dialog.active = false;
+      dialog.respondedAt = Date.now();
+      dialog.responseAction = action;
+      if (promptText) dialog.promptText = promptText;
+      return {
+        content: [
+          {
+            type: "text",
+            text: `${action === "accept" ? "Accepted" : "Dismissed"} ${dialog.type} dialog: ${dialog.message}`,
+          },
+        ],
+      };
+    } catch (e) {
+      return { content: [{ type: "text", text: `Error handling dialog: ${e.message}` }] };
+    }
   },
 
   async resize_window(args) {

@@ -98,6 +98,26 @@ describe("extension product surface", () => {
     expect(contentScript.all_frames).toBe(true)
   })
 
+  test("exposes native JavaScript dialog tools backed by CDP Page events", () => {
+    const background = readFileSync(join(extensionRoot, "background.js"), "utf8")
+    const tools = readFileSync(join(packageRoot, "src", "tools", "manifest.js"), "utf8")
+    const mcpServer = readFileSync(join(packageRoot, "host", "mcp-server.js"), "utf8")
+
+    for (const token of ["browser_dialogs", "browser_dialog"]) {
+      expect(tools).toContain(`name: "${token}"`)
+      expect(mcpServer).toContain(`"${token}"`)
+    }
+
+    for (const token of [
+      "Page.javascriptDialogOpening",
+      "Page.javascriptDialogClosed",
+      "Page.handleJavaScriptDialog",
+      "pendingDialogs",
+    ]) {
+      expect(background).toContain(token)
+    }
+  })
+
   test("ships Claude-style shared UI chrome", () => {
     const uiCss = readFileSync(join(extensionRoot, "ui.css"), "utf8")
     expect(uiCss).toContain("--bg-100: hsl(48 33.3% 97.1%)")
