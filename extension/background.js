@@ -477,10 +477,14 @@ function rememberDialog(tabId, params) {
 
 function closeRememberedDialog(tabId, params = {}) {
   const dialogs = pendingDialogs.get(tabId) || [];
-  const dialog = dialogs.find((entry) => entry.active);
+  const now = Date.now();
+  const dialog = dialogs.find((entry) => entry.awaitingCloseEvent && now - entry.respondedAt < 10000)
+    || dialogs.find((entry) => entry.active);
   if (!dialog) return;
   dialog.active = false;
-  dialog.closedAt = Date.now();
+  dialog.awaitingCloseEvent = false;
+  dialog.closedAt = dialog.closedAt || now;
+  dialog.cdpClosedAt = now;
   dialog.result = Boolean(params.result);
   dialog.userInput = params.userInput || "";
 }
@@ -1346,9 +1350,12 @@ const toolHandlers = {
         accept: action === "accept",
         promptText,
       });
+      const now = Date.now();
       dialog.active = false;
-      dialog.respondedAt = Date.now();
+      dialog.closedAt = dialog.closedAt || now;
+      dialog.respondedAt = now;
       dialog.responseAction = action;
+      dialog.awaitingCloseEvent = !dialog.cdpClosedAt;
       if (promptText) dialog.promptText = promptText;
       return {
         content: [

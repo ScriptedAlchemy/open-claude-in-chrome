@@ -113,6 +113,7 @@ describe("extension product surface", () => {
       "Page.javascriptDialogClosed",
       "Page.handleJavaScriptDialog",
       "pendingDialogs",
+      "awaitingCloseEvent",
     ]) {
       expect(background).toContain(token)
     }
