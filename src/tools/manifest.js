@@ -364,6 +364,34 @@ export const CHROME_BROWSER_TOOLS = [
     },
   },
   {
+    name: "browser_dialogs",
+    description: "List native JavaScript dialogs (alert, confirm, prompt, beforeunload) currently blocking a tab.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tabId: tabIdProperty,
+        clearClosed: { type: "boolean" },
+      },
+      required: ["tabId"],
+      additionalProperties: true,
+    },
+  },
+  {
+    name: "browser_dialog",
+    description: "Accept or dismiss a native JavaScript dialog currently blocking a tab.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tabId: tabIdProperty,
+        action: { type: "string", enum: ["accept", "dismiss"] },
+        promptText: { type: "string" },
+        dialogId: { type: "string" },
+      },
+      required: ["tabId", "action"],
+      additionalProperties: true,
+    },
+  },
+  {
     name: "shortcuts_list",
     description: "List available browser shortcuts and workflows.",
     inputSchema: {
