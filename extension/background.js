@@ -1309,7 +1309,7 @@ const toolHandlers = {
       pendingDialogs.set(tabId, getDialogList(tabId));
     }
 
-    const dialogs = getDialogList(tabId, { includeClosed: !args.clearClosed });
+    const dialogs = getDialogList(tabId);
     if (dialogs.length === 0) {
       return { content: [{ type: "text", text: "No pending JavaScript dialogs." }] };
     }

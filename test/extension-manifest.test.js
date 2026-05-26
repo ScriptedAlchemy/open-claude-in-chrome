@@ -114,6 +114,7 @@ describe("extension product surface", () => {
       "Page.handleJavaScriptDialog",
       "pendingDialogs",
       "awaitingCloseEvent",
+      "const dialogs = getDialogList(tabId);",
     ]) {
       expect(background).toContain(token)
     }
