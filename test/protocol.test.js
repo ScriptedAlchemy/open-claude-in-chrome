@@ -4,6 +4,7 @@ import {
   decodeNativeMessages,
   encodeJsonLine,
   encodeNativeMessage,
+  MAX_JSON_LINE_SIZE,
   MAX_NATIVE_MESSAGE_SIZE,
 } from "../src/shared/protocol.js"
 
@@ -94,5 +95,21 @@ describe("newline-delimited JSON protocol", () => {
       { id: "2", ok: false },
     ])
     expect(remainder.length).toBe(0)
+  })
+
+  test("rejects an oversized partial JSON line", () => {
+    const { error, messages, remainder } = decodeJsonLines(
+      Buffer.from("x".repeat(MAX_JSON_LINE_SIZE + 1), "utf8"),
+    )
+
+    expect(messages).toEqual([])
+    expect(error.message).toContain("JSON line exceeds maximum size")
+    expect(remainder.length).toBe(0)
+  })
+
+  test("rejects oversized encoded JSON lines", () => {
+    expect(() => encodeJsonLine({ text: "x".repeat(MAX_JSON_LINE_SIZE + 1) })).toThrow(
+      "JSON line exceeds maximum size",
+    )
   })
 })

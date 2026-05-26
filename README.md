@@ -51,7 +51,7 @@ Three components:
 
 ### Prerequisites
 
-- **Node.js** v18+
+- Node.js v22+
 - **Any Chromium browser** (Chrome, Edge, Brave, Arc, Opera, Vivaldi, etc.)
 - **Claude Code** v2.0.73+
 

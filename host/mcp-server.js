@@ -16,6 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { z } from "zod";
+import { decodeJsonLines, encodeJsonLine, MAX_JSON_LINE_SIZE } from "../src/shared/protocol.js";
 
 
 const DEFAULT_PORT = 18765;
@@ -74,8 +75,11 @@ function sendToExtension(tool, args) {
         reject(new Error("Browser extension is not connected. Make sure a supported Chromium browser is running with the Open Claude in Chrome extension installed and enabled."));
         return;
       }
-      const msg = JSON.stringify({ id, type: "tool_request", tool, args }) + "\n";
-      nativeHostSocket.write(msg);
+      if (!writeJsonLine(nativeHostSocket, { id, type: "tool_request", tool, args })) {
+        clearTimeout(timer);
+        pendingRequests.delete(id);
+        reject(new Error("Tool request exceeded protocol size limit."));
+      }
     } else {
       // Client mode: send to primary server
       if (!primarySocket || primarySocket.destroyed) {
@@ -84,8 +88,11 @@ function sendToExtension(tool, args) {
         reject(new Error("Lost connection to primary MCP server."));
         return;
       }
-      const msg = JSON.stringify({ id, type: "tool_request", tool, args }) + "\n";
-      primarySocket.write(msg);
+      if (!writeJsonLine(primarySocket, { id, type: "tool_request", tool, args })) {
+        clearTimeout(timer);
+        pendingRequests.delete(id);
+        reject(new Error("Tool request exceeded protocol size limit."));
+      }
     }
   });
 }
@@ -94,6 +101,33 @@ function normalizeToolName(toolName) {
   if (toolName === "tabs_context") return "tabs_context_mcp";
   if (toolName === "tabs_create") return "tabs_create_mcp";
   return toolName;
+}
+
+function writeJsonLine(socket, message) {
+  try {
+    socket.write(encodeJsonLine(message));
+    return true;
+  } catch (error) {
+    debugLog(`Failed to write JSON line: ${error.message}
+`);
+    return false;
+  }
+}
+
+function closeForProtocolError(socket, error) {
+  debugLog(`Closing socket after protocol error: ${error.message}
+`);
+  socket.destroy();
+}
+
+function appendAndDecodeJsonLines(socket, buffer, chunk, onMessage) {
+  const decoded = decodeJsonLines(Buffer.concat([buffer, chunk]));
+  if (decoded.error) {
+    closeForProtocolError(socket, decoded.error);
+    return Buffer.alloc(0);
+  }
+  for (const message of decoded.messages) onMessage(message);
+  return decoded.remainder;
 }
 
 // --- Pidfile management ---
@@ -141,8 +175,9 @@ function handleResponse(msg) {
     clientRequestMap.delete(msg.id);
     const clientSocket = clientSockets.get(clientId);
     if (clientSocket && !clientSocket.destroyed) {
-      const fwd = JSON.stringify({ ...msg, id: originalId }) + "\n";
-      clientSocket.write(fwd);
+      if (!writeJsonLine(clientSocket, { ...msg, id: originalId })) {
+        clientSocket.destroy();
+      }
     }
     return;
   }
@@ -160,16 +195,12 @@ function handleResponse(msg) {
   }
 }
 
-function processLine(line) {
-  if (!line) return;
-  try {
-    const msg = JSON.parse(line);
-    if (msg.type === "heartbeat") return;
-    handleResponse(msg);
-  } catch {}
-}
-
 const tcpServer = net.createServer((socket) => {
+  socket.on("error", (error) => {
+    debugLog(`TCP peer error: ${error.message}
+`);
+  });
+
   // Classification: wait briefly for a client_hello. If none arrives, treat as native host.
   // Native hosts (launched by the browser) don't send data immediately on connect.
   // Client MCP servers send client_hello immediately.
@@ -187,7 +218,20 @@ const tcpServer = net.createServer((socket) => {
     if (classified) return; // Already classified, data handler was replaced
     earlyBuffer = Buffer.concat([earlyBuffer, chunk]);
     const newlineIdx = earlyBuffer.indexOf(10);
-    if (newlineIdx === -1) return; // No full line yet, keep buffering
+    if (newlineIdx === -1) {
+      if (earlyBuffer.length > MAX_JSON_LINE_SIZE) {
+        classified = true;
+        clearTimeout(classifyTimeout);
+        closeForProtocolError(socket, new Error("Initial JSON line exceeded maximum size"));
+      }
+      return;
+    }
+    if (newlineIdx > MAX_JSON_LINE_SIZE) {
+      classified = true;
+      clearTimeout(classifyTimeout);
+      closeForProtocolError(socket, new Error("Initial JSON line exceeded maximum size"));
+      return;
+    }
 
     const firstLine = earlyBuffer.subarray(0, newlineIdx).toString("utf-8").trim();
     try {
@@ -212,7 +256,8 @@ const tcpServer = net.createServer((socket) => {
 function setupNativeHostConnection(socket, initialBuffer) {
   if (nativeHostSocket && !nativeHostSocket.destroyed) {
     // Already have a native host. Reject.
-    socket.end(JSON.stringify({ type: "error", error: "Another browser profile is already connected." }) + "\n");
+    writeJsonLine(socket, { type: "error", error: "Another browser profile is already connected." });
+    socket.end();
     socket.destroy();
     return;
   }
@@ -220,20 +265,17 @@ function setupNativeHostConnection(socket, initialBuffer) {
   nativeHostSocket = socket;
   let buffer = initialBuffer;
 
-  // Process any data already in the buffer
-  let idx;
-  while ((idx = buffer.indexOf(10)) !== -1) {
-    processLine(buffer.subarray(0, idx).toString("utf-8").trim());
-    buffer = buffer.subarray(idx + 1);
+  // Process any complete data already in the buffer.
+  const decodedInitial = decodeJsonLines(buffer);
+  if (decodedInitial.error) {
+    closeForProtocolError(socket, decodedInitial.error);
+    return;
   }
+  for (const message of decodedInitial.messages) handleResponse(message);
+  buffer = decodedInitial.remainder;
 
   socket.on("data", (chunk) => {
-    buffer = Buffer.concat([buffer, chunk]);
-    let newlineIdx;
-    while ((newlineIdx = buffer.indexOf(10)) !== -1) {
-      processLine(buffer.subarray(0, newlineIdx).toString("utf-8").trim());
-      buffer = buffer.subarray(newlineIdx + 1);
-    }
+    buffer = appendAndDecodeJsonLines(socket, buffer, chunk, handleResponse);
   });
 
   socket.on("error", () => { nativeHostSocket = null; });
@@ -246,7 +288,11 @@ function setupNativeHostConnection(socket, initialBuffer) {
           for (const [id, entry] of pendingRequests) {
             if (entry.resent) continue;
             entry.resent = true;
-            nativeHostSocket.write(JSON.stringify({ id, type: "tool_request", tool: entry.tool, args: entry.args }) + "\n");
+            if (!writeJsonLine(nativeHostSocket, { id, type: "tool_request", tool: entry.tool, args: entry.args })) {
+              clearTimeout(entry.timer);
+              entry.reject(new Error("Tool request exceeded protocol size limit."));
+              pendingRequests.delete(id);
+            }
           }
         } else {
           for (const [, { reject, timer }] of pendingRequests) {
@@ -266,33 +312,37 @@ function setupClientConnection(socket, initialBuffer) {
   debugLog(`Client MCP server connected (client ${clientId})\n`);
 
   // Send ack
-  socket.write(JSON.stringify({ type: "client_ack", clientId }) + "\n");
+  if (!writeJsonLine(socket, { type: "client_ack", clientId })) {
+    socket.destroy();
+    return;
+  }
 
   let buffer = initialBuffer;
 
-  function processClientData() {
-    let idx;
-    while ((idx = buffer.indexOf(10)) !== -1) {
-      const line = buffer.subarray(0, idx).toString("utf-8").trim();
-      buffer = buffer.subarray(idx + 1);
-      if (!line) continue;
-      try {
-        const msg = JSON.parse(line);
-        if (msg.type === "tool_request" && msg.id) {
-          // Forward to native host with a prefixed ID
-          const prefixedId = `c${clientId}_${msg.id}`;
-          clientRequestMap.set(prefixedId, { clientId, originalId: msg.id });
+  function handleClientMessage(msg) {
+    if (msg.type !== "tool_request" || !msg.id) return;
+    // Forward to native host with a prefixed ID.
+    const prefixedId = `c${clientId}_${msg.id}`;
+    clientRequestMap.set(prefixedId, { clientId, originalId: msg.id });
 
-          if (!nativeHostSocket || nativeHostSocket.destroyed) {
-            // Send error back to client
-            socket.write(JSON.stringify({ id: msg.id, type: "tool_error", error: "Browser extension is not connected." }) + "\n");
-            clientRequestMap.delete(prefixedId);
-          } else {
-            nativeHostSocket.write(JSON.stringify({ ...msg, id: prefixedId }) + "\n");
-          }
-        }
-      } catch {}
+    if (!nativeHostSocket || nativeHostSocket.destroyed) {
+      writeJsonLine(socket, { id: msg.id, type: "tool_error", error: "Browser extension is not connected." });
+      clientRequestMap.delete(prefixedId);
+    } else if (!writeJsonLine(nativeHostSocket, { ...msg, id: prefixedId })) {
+      clientRequestMap.delete(prefixedId);
+      writeJsonLine(socket, { id: msg.id, type: "tool_error", error: "Tool request exceeded protocol size limit." });
     }
+  }
+
+  function processClientData() {
+    const decoded = decodeJsonLines(buffer);
+    if (decoded.error) {
+      closeForProtocolError(socket, decoded.error);
+      buffer = Buffer.alloc(0);
+      return;
+    }
+    buffer = decoded.remainder;
+    for (const msg of decoded.messages) handleClientMessage(msg);
   }
 
   // Process initial buffer
@@ -324,36 +374,30 @@ function startClientMode() {
     primarySocket = net.createConnection(TCP_PORT, "127.0.0.1", () => {
       debugLog(`Connected to primary MCP server on :${TCP_PORT}\n`);
       // Send handshake
-      primarySocket.write(JSON.stringify({ type: "client_hello" }) + "\n");
+      if (!writeJsonLine(primarySocket, { type: "client_hello" })) {
+        primarySocket.destroy();
+      }
     });
 
     primarySocket.on("data", (chunk) => {
-      clientBuffer = Buffer.concat([clientBuffer, chunk]);
-      let idx;
-      while ((idx = clientBuffer.indexOf(10)) !== -1) {
-        const line = clientBuffer.subarray(0, idx).toString("utf-8").trim();
-        clientBuffer = clientBuffer.subarray(idx + 1);
-        if (!line) continue;
-        try {
-          const msg = JSON.parse(line);
-          if (msg.type === "client_ack") continue;
-          if (msg.type === "error") {
-            debugLog(`Primary server error: ${msg.error}\n`);
-            continue;
+      clientBuffer = appendAndDecodeJsonLines(primarySocket, clientBuffer, chunk, (msg) => {
+        if (msg.type === "client_ack") return;
+        if (msg.type === "error") {
+          debugLog(`Primary server error: ${msg.error}\n`);
+          return;
+        }
+        // Tool response routed back from primary.
+        if (msg.id && pendingRequests.has(msg.id)) {
+          const { resolve, reject, timer } = pendingRequests.get(msg.id);
+          clearTimeout(timer);
+          pendingRequests.delete(msg.id);
+          if (msg.type === "tool_error") {
+            reject(new Error(msg.error || "Tool execution failed"));
+          } else {
+            resolve(msg.result);
           }
-          // Tool response routed back from primary
-          if (msg.id && pendingRequests.has(msg.id)) {
-            const { resolve, reject, timer } = pendingRequests.get(msg.id);
-            clearTimeout(timer);
-            pendingRequests.delete(msg.id);
-            if (msg.type === "tool_error") {
-              reject(new Error(msg.error || "Tool execution failed"));
-            } else {
-              resolve(msg.result);
-            }
-          }
-        } catch {}
-      }
+        }
+      });
     });
 
     primarySocket.on("error", (err) => {
@@ -426,14 +470,6 @@ function textResult(text) {
   return { content: [{ type: "text", text }] };
 }
 
-function imageResult(base64, mimeType = "image/png") {
-  return { content: [{ type: "image", data: base64, mimeType }] };
-}
-
-function mixedResult(parts) {
-  return { content: parts };
-}
-
 async function callTool(toolName, args) {
   try {
     const result = await sendToExtension(normalizeToolName(toolName), args);
@@ -441,7 +477,7 @@ async function callTool(toolName, args) {
     if (result && result.content) return result;
     return textResult(JSON.stringify(result, null, 2));
   } catch (err) {
-    return textResult(`Error: ${err.message}`);
+    throw new Error(err?.message || "Tool execution failed");
   }
 }
 

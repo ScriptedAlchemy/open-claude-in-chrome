@@ -22,7 +22,7 @@ let gifRecording = null;
 const pendingPairingRequests = new Set();
 
 // --- Keep-alive alarm ---
-chrome.alarms.create("keepalive", { periodInMinutes: 0.4 });
+chrome.alarms.create("keepalive", { periodInMinutes: 0.5 });
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "keepalive") {
     if (!nativePort) connectNativeHost();
@@ -243,9 +243,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return false;
 });
 
+function isTrustedClaudeOrigin(origin) {
+  try {
+    const { protocol, hostname } = new URL(origin);
+    return (
+      protocol === "https:" &&
+      (hostname === "claude.ai" || hostname.endsWith(".claude.ai"))
+    );
+  } catch {
+    return false;
+  }
+}
+
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
-  const origin = sender.origin || "";
-  if (origin !== "https://claude.ai") {
+  const origin = sender.origin || sender.url || "";
+  if (!isTrustedClaudeOrigin(origin)) {
     sendResponse({ success: false, error: "Untrusted origin" });
     return true;
   }
@@ -465,30 +477,35 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
     consoleMessages.set(tabId, msgs);
   }
 
-  if (method === "Network.responseReceived" && params.response) {
-    const reqs = networkRequests.get(tabId) || [];
-    reqs.push({
-      url: params.response.url,
-      method: params.response.requestHeaders ? "?" : "GET",
-      status: params.response.status,
-      statusText: params.response.statusText,
-      type: params.type || "Other",
-      mimeType: params.response.mimeType,
-      timestamp: Date.now(),
-    });
-    if (reqs.length > 1000) reqs.splice(0, reqs.length - 1000);
-    networkRequests.set(tabId, reqs);
-  }
-
   if (method === "Network.requestWillBeSent" && params.request) {
     const reqs = networkRequests.get(tabId) || [];
     reqs.push({
+      requestId: params.requestId,
       url: params.request.url,
       method: params.request.method,
       status: 0,
       type: params.type || "Other",
       timestamp: Date.now(),
     });
+    if (reqs.length > 1000) reqs.splice(0, reqs.length - 1000);
+    networkRequests.set(tabId, reqs);
+  }
+
+  if (method === "Network.responseReceived" && params.response) {
+    const reqs = networkRequests.get(tabId) || [];
+    const existing = reqs.find((request) => request.requestId === params.requestId);
+    const entry = existing || {
+      requestId: params.requestId,
+      url: params.response.url,
+      method: params.response.requestHeaders?.[":method"] || "GET",
+      timestamp: Date.now(),
+    };
+    entry.url = params.response.url;
+    entry.status = params.response.status;
+    entry.statusText = params.response.statusText;
+    entry.type = params.type || entry.type || "Other";
+    entry.mimeType = params.response.mimeType;
+    if (!existing) reqs.push(entry);
     if (reqs.length > 1000) reqs.splice(0, reqs.length - 1000);
     networkRequests.set(tabId, reqs);
   }
@@ -556,11 +573,6 @@ async function resolveRefToCoordinates(tabId, ref) {
 }
 
 // --- Screenshot helper ---
-// Cap viewport to 1280x800 for screenshots to keep size manageable.
-// Retina displays produce 2x+ resolution PNGs that blow up base64 size.
-const MAX_SCREENSHOT_WIDTH = 1280;
-const MAX_SCREENSHOT_HEIGHT = 800;
-
 async function takeScreenshot(tabId) {
   await ensureAttached(tabId);
 
@@ -1031,7 +1043,7 @@ const toolHandlers = {
         return {
           content: [
             { type: "text", text: `Zoom region: [${args.region.join(", ")}]` },
-            { type: "image", data: fullBase64, mimeType: "image/png" },
+            { type: "image", data: fullBase64, mimeType: "image/jpeg" },
           ],
         };
       }
@@ -1256,44 +1268,21 @@ const toolHandlers = {
   },
 
   async upload_image(args) {
-    const { imageId, tabId, ref, coordinate, filename = "image.png" } = args;
+    const { imageId, tabId, ref, coordinate } = args;
     if (!(await isInGroup(tabId))) return { content: [{ type: "text", text: `Tab ${tabId} is not in the MCP group.` }] };
 
-    const base64 = screenshotStore.get(imageId);
-    if (!base64) {
+    if (!screenshotStore.has(imageId)) {
       return { content: [{ type: "text", text: `Image ${imageId} not found. Take a screenshot first.` }] };
     }
 
-    // Use CDP to set file input
-    if (ref) {
-      // Find the element and set its files via CDP
-      await ensureAttached(tabId);
-      const result = await cdp(tabId, "Runtime.evaluate", {
-        expression: `(() => {
-          const el = window.__openClaudeChrome?.resolveRef?.("${ref}");
-          if (!el) return null;
-          return el.tagName.toLowerCase();
-        })()`,
-        returnByValue: true,
-      });
-
-      if (result.result?.value === "input") {
-        // For file inputs, we need DOM.setFileInputFiles via CDP
-        // First get the node
-        const doc = await cdp(tabId, "DOM.getDocument", {});
-        const nodeResult = await cdp(tabId, "Runtime.evaluate", {
-          expression: `(() => {
-            const el = window.__openClaudeChrome?.resolveRef?.("${ref}");
-            if (el) el.scrollIntoView();
-            return true;
-          })()`,
-          returnByValue: true,
-        });
-        return { content: [{ type: "text", text: `Upload via file input requires a temporary file. Use the file input directly.` }] };
-      }
-    }
-
-    return { content: [{ type: "text", text: `Image upload for ref=${ref}, coordinate=${coordinate} — use drag & drop or file input.` }] };
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Image upload is not implemented for browser-extension security reasons (target: ${ref ? `ref=${ref}` : `coordinate=${coordinate || "unspecified"}`}). Use file_upload to prepare the target and ask the user to select a local file.`,
+        },
+      ],
+    };
   },
 
   async file_upload(args) {
@@ -1459,11 +1448,13 @@ const toolHandlers = {
   },
 
   async update_plan(args) {
-    const { domains, approach } = args;
-    let text = `Plan:\n\nDomains: ${domains.join(", ")}\n\nApproach:\n`;
+    const domains = Array.isArray(args.domains) ? args.domains : [];
+    const approach = Array.isArray(args.approach) ? args.approach : [];
+    let text = `Plan:\n\nDomains: ${domains.join(", ") || "unspecified"}\n\nApproach:\n`;
     for (const step of approach) {
       text += `- ${step}\n`;
     }
+    if (approach.length === 0) text += "- unspecified\n";
     text += "\nPlan auto-approved (no permission restrictions in this extension).";
     return { content: [{ type: "text", text }] };
   },
